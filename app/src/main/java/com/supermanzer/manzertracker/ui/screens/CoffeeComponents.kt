@@ -28,7 +28,8 @@ import androidx.compose.ui.unit.dp
 import com.supermanzer.manzertracker.data.CoffeeBag
 import com.supermanzer.manzertracker.data.CoffeeBrew
 import com.supermanzer.manzertracker.data.Roaster
-import java.text.SimpleDateFormat
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 @Composable
@@ -54,7 +55,8 @@ fun BrewItem(brew: CoffeeBrew, bag: CoffeeBag?, roaster: Roaster?, onClick: () -
                 Text(text = "Rating: $it/5", style = MaterialTheme.typography.bodySmall)
             }
             Text(
-                text = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(brew.brewDate),
+                text = DateTimeFormatter.ofPattern("MMM dd, yyyy", Locale.getDefault())
+                    .withZone(ZoneId.systemDefault()).format(brew.brewDate),
                 style = MaterialTheme.typography.labelSmall
             )
         }
@@ -63,12 +65,10 @@ fun BrewItem(brew: CoffeeBrew, bag: CoffeeBag?, roaster: Roaster?, onClick: () -
 
 @Composable
 fun BrewDetail(
-    brew: CoffeeBrew, 
-    bag: CoffeeBag?, 
+    brew: CoffeeBrew,
+    bag: CoffeeBag?,
     roaster: Roaster?,
     onEditBrew: () -> Unit,
-    onEditBag: () -> Unit,
-    onEditRoaster: () -> Unit,
     onDeleteBrew: () -> Unit
 ) {
     Column(
@@ -95,11 +95,8 @@ fun BrewDetail(
         }
         Spacer(modifier = Modifier.height(16.dp))
 
-        DetailSection(
-            title = "Coffee Information",
-            onEdit = onEditBag
-        ) {
-            DetailRow(label = "Roaster", value = roaster?.name ?: "Unknown", onEdit = onEditRoaster)
+        DetailSection(title = "Coffee Information") {
+            DetailRow(label = "Roaster", value = roaster?.name ?: "Unknown")
             roaster?.location?.let { DetailRow(label = "Roaster Location", value = it) }
             DetailRow(label = "Coffee Name", value = bag?.name ?: "Unknown")
             bag?.origin?.let { DetailRow(label = "Origin", value = it) }
@@ -109,7 +106,7 @@ fun BrewDetail(
             bag?.roastDate?.let {
                 DetailRow(
                     label = "Roast Date",
-                    value = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(it)
+                    value = DateTimeFormatter.ofPattern("MMM dd, yyyy", Locale.getDefault()).format(it)
                 )
             }
         }
@@ -119,7 +116,8 @@ fun BrewDetail(
         DetailSection(title = "Brew Parameters") {
             DetailRow(
                 label = "Date",
-                value = SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault()).format(brew.brewDate)
+                value = DateTimeFormatter.ofPattern("MMM dd, yyyy HH:mm", Locale.getDefault())
+                    .withZone(ZoneId.systemDefault()).format(brew.brewDate)
             )
             DetailRow(label = "Method", value = brew.method)
             brew.ratio?.let { DetailRow(label = "Ratio", value = it) }
@@ -134,5 +132,131 @@ fun BrewDetail(
                 Text(text = it, style = MaterialTheme.typography.bodyLarge)
             }
         }
+    }
+}
+
+@Composable
+fun BagItem(bag: CoffeeBag, roaster: Roaster?, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .clickable { onClick() },
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(text = bag.name, style = MaterialTheme.typography.titleMedium)
+            Text(text = "Roaster: ${roaster?.name ?: "Unknown"}")
+            bag.origin?.let { Text(text = "Origin: $it", style = MaterialTheme.typography.bodyMedium) }
+            bag.roastDate?.let {
+                Text(
+                    text = "Roast Date: ${DateTimeFormatter.ofPattern("MMM dd, yyyy", Locale.getDefault()).format(it)}",
+                    style = MaterialTheme.typography.labelSmall
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun RoasterItem(roaster: Roaster, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .clickable { onClick() },
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(text = roaster.name, style = MaterialTheme.typography.titleMedium)
+            roaster.location?.let { Text(text = it, style = MaterialTheme.typography.bodyMedium) }
+        }
+    }
+}
+
+@Composable
+fun BagDetail(
+    bag: CoffeeBag,
+    roaster: Roaster?,
+    onEditBag: () -> Unit,
+    onDeleteBag: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp)
+            .padding(bottom = 32.dp)
+            .verticalScroll(rememberScrollState())
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(text = "Coffee Bag Details", style = MaterialTheme.typography.headlineSmall)
+            Row {
+                IconButton(onClick = onEditBag) {
+                    Icon(Icons.Default.Edit, contentDescription = "Edit Bag")
+                }
+                IconButton(onClick = onDeleteBag) {
+                    Icon(Icons.Default.Delete, contentDescription = "Delete Bag", tint = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+
+        DetailRow(label = "Name", value = bag.name)
+        DetailRow(label = "Roaster", value = roaster?.name ?: "Unknown")
+        bag.origin?.let { DetailRow(label = "Origin", value = it) }
+        bag.region?.let { DetailRow(label = "Region", value = it) }
+        bag.variety?.let { DetailRow(label = "Variety", value = it) }
+        bag.process?.let { DetailRow(label = "Process", value = it) }
+        bag.roastDate?.let {
+            DetailRow(
+                label = "Roast Date",
+                value = DateTimeFormatter.ofPattern("MMM dd, yyyy", Locale.getDefault()).format(it)
+            )
+        }
+    }
+}
+
+@Composable
+fun RoasterDetail(
+    roaster: Roaster,
+    onEditRoaster: () -> Unit,
+    onDeleteRoaster: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp)
+            .padding(bottom = 32.dp)
+            .verticalScroll(rememberScrollState())
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(text = "Roaster Details", style = MaterialTheme.typography.headlineSmall)
+            Row {
+                IconButton(onClick = onEditRoaster) {
+                    Icon(Icons.Default.Edit, contentDescription = "Edit Roaster")
+                }
+                IconButton(onClick = onDeleteRoaster) {
+                    Icon(Icons.Default.Delete, contentDescription = "Delete Roaster", tint = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+
+        DetailRow(label = "Name", value = roaster.name)
+        roaster.location?.let { DetailRow(label = "Location", value = it) }
     }
 }

@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.util.Date
+import java.time.LocalDate
 
 class CoffeeViewModel(private val coffeeDao: CoffeeDao) : ViewModel() {
 
@@ -48,7 +48,7 @@ class CoffeeViewModel(private val coffeeDao: CoffeeDao) : ViewModel() {
         origin: String? = null,
         variety: String? = null,
         process: String? = null,
-        roastDate: Date? = null,
+        roastDate: LocalDate? = null,
         region: String? = null
     ) {
         viewModelScope.launch {

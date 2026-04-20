@@ -41,7 +41,7 @@ import com.supermanzer.manzertracker.data.WorkoutPlan
 import com.supermanzer.manzertracker.data.WorkoutSession
 import com.supermanzer.manzertracker.data.WorkoutSet
 import com.supermanzer.manzertracker.ui.viewmodels.FitnessViewModel
-import java.util.Date
+import java.time.Instant
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,7 +54,9 @@ fun WorkoutSessionForm(
     var selectedPlan by remember { mutableStateOf(plans.find { it.id == session?.planId }) }
     var notes by remember { mutableStateOf(session?.notes ?: "") }
     var expanded by remember { mutableStateOf(false) }
+    var exerciseExpanded by remember { mutableStateOf(false) }
     
+    val allExercises by viewModel.allExercises.collectAsState()
     val planExercises by if (selectedPlan != null) {
         viewModel.getExercisesForPlan(selectedPlan!!.id).collectAsState(initial = emptyList())
     } else {
@@ -130,9 +132,12 @@ fun WorkoutSessionForm(
 
         Spacer(modifier = Modifier.height(16.dp))
         
-        if (selectedPlan != null) {
+        val exercisesWithSets = allExercises.filter { ex -> sets.any { it.exerciseId == ex.id } }
+        val displayedExercises = (planExercises + exercisesWithSets).distinctBy { it.id }
+
+        if (displayedExercises.isNotEmpty()) {
             Text(text = "Exercises", style = MaterialTheme.typography.titleMedium)
-            planExercises.forEach { exercise ->
+            displayedExercises.forEach { exercise ->
                 val exerciseSets = sets.filter { it.exerciseId == exercise.id }
                 
                 Column(modifier = Modifier.padding(vertical = 8.dp)) {
@@ -187,7 +192,45 @@ fun WorkoutSessionForm(
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(16.dp))
+        ExposedDropdownMenuBox(
+            expanded = exerciseExpanded,
+            onExpandedChange = { exerciseExpanded = !exerciseExpanded }
+        ) {
+            OutlinedTextField(
+                value = "Add Additional Exercise",
+                onValueChange = {},
+                readOnly = true,
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = exerciseExpanded) },
+                modifier = Modifier
+                    .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                    .fillMaxWidth()
+            )
+            ExposedDropdownMenu(
+                expanded = exerciseExpanded,
+                onDismissRequest = { exerciseExpanded = false }
+            ) {
+                allExercises.filter { ex -> 
+                    planExercises.none { it.id == ex.id } && sets.none { it.exerciseId == ex.id } 
+                }.forEach { exercise ->
+                    DropdownMenuItem(
+                        text = { Text(exercise.name) },
+                        onClick = {
+                            sets = sets + WorkoutSet(
+                                sessionId = 0,
+                                exerciseId = exercise.id,
+                                setNumber = 1,
+                                weight = 0.0,
+                                reps = 0
+                            )
+                            exerciseExpanded = false
+                        }
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
         OutlinedTextField(
             value = notes,
             onValueChange = { notes = it },
@@ -204,7 +247,7 @@ fun WorkoutSessionForm(
                     ) ?: WorkoutSession(
                         planId = selectedPlan?.id,
                         notes = notes,
-                        startTime = Date()
+                        startTime = Instant.now()
                     ),
                     sets
                 )
@@ -278,23 +321,8 @@ fun WorkoutPlanForm(
     var selectedExercises by remember { mutableStateOf(initialExercises) }
     var expanded by remember { mutableStateOf(false) }
 
-    // Synchronize selectedExercises with initialExercises when they are loaded
     LaunchedEffect(initialExercises) {
-        if (plan != null && initialExercises.isNotEmpty() && selectedExercises.isEmpty()) {
-             selectedExercises = initialExercises
-        }
-    }
-
-    // Synchronize selectedExercises with initialExercises when they are loaded
-    LaunchedEffect(initialExercises) {
-        if (plan != null && initialExercises.isNotEmpty()) {
-             selectedExercises = initialExercises
-        }
-    }
-
-    // Update state if initialExercises changes (e.g. when loaded from ViewModel)
-    LaunchedEffect(initialExercises) {
-        if (selectedExercises.isEmpty() && initialExercises.isNotEmpty()) {
+        if (initialExercises.isNotEmpty()) {
             selectedExercises = initialExercises
         }
     }

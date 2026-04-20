@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -17,14 +16,16 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -57,6 +58,10 @@ enum class FitnessFormType {
     NONE, SESSION, PLAN, EXERCISE, SESSION_DETAIL, EDIT_SESSION, PLAN_DETAIL, EDIT_PLAN, EDIT_EXERCISE
 }
 
+enum class FitnessTab {
+    SESSIONS, PLANS, EXERCISES
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FitnessScreen() {
@@ -75,7 +80,8 @@ fun FitnessScreen() {
     var selectedPlan by remember { mutableStateOf<WorkoutPlan?>(null) }
     var selectedExercise by remember { mutableStateOf<Exercise?>(null) }
     
-    var showFabMenu by remember { mutableStateOf(false) }
+    var selectedTab by remember { mutableStateOf(FitnessTab.SESSIONS) }
+    
     var showDeleteDialog by remember { mutableStateOf<Any?>(null) }
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -95,37 +101,15 @@ fun FitnessScreen() {
         Scaffold(
             containerColor = Color.Transparent,
             floatingActionButton = {
-            Box(modifier = Modifier.wrapContentSize()) {
-                FloatingActionButton(onClick = { showFabMenu = true }) {
+                FloatingActionButton(onClick = {
+                    activeForm = when (selectedTab) {
+                        FitnessTab.SESSIONS -> FitnessFormType.SESSION
+                        FitnessTab.PLANS -> FitnessFormType.PLAN
+                        FitnessTab.EXERCISES -> FitnessFormType.EXERCISE
+                    }
+                }) {
                     Icon(Icons.Default.Add, contentDescription = "Add Item")
                 }
-                DropdownMenu(
-                    expanded = showFabMenu,
-                    onDismissRequest = { showFabMenu = false }
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("Log Workout") },
-                        onClick = {
-                            activeForm = FitnessFormType.SESSION
-                            showFabMenu = false
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Create Plan") },
-                        onClick = {
-                            activeForm = FitnessFormType.PLAN
-                            showFabMenu = false
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Add Exercise") },
-                        onClick = {
-                            activeForm = FitnessFormType.EXERCISE
-                            showFabMenu = false
-                        }
-                    )
-                }
-            }
         }
     ) { padding ->
         Box(
@@ -137,39 +121,83 @@ fun FitnessScreen() {
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
-                    .padding(16.dp)
-                    .verticalScroll(rememberScrollState())
             ) {
-            Text(text = "Recent Workouts", style = MaterialTheme.typography.headlineMedium)
-            Spacer(modifier = Modifier.height(8.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                sessions.take(5).forEach { session ->
-                    val plan = plans.find { it.id == session.planId }
-                    WorkoutSessionItem(
-                        session = session,
-                        plan = plan,
-                        onClick = {
-                            selectedSession = session
-                            activeForm = FitnessFormType.SESSION_DETAIL
+                TabRow(
+                    selectedTabIndex = selectedTab.ordinal,
+                    containerColor = Color.Transparent,
+                    contentColor = MaterialTheme.colorScheme.primary,
+                    indicator = { tabPositions ->
+                        if (selectedTab.ordinal < tabPositions.size) {
+                            TabRowDefaults.SecondaryIndicator(
+                                Modifier.tabIndicatorOffset(tabPositions[selectedTab.ordinal])
+                            )
                         }
-                    )
+                    }
+                ) {
+                    FitnessTab.entries.forEach { tab ->
+                        Tab(
+                            selected = selectedTab == tab,
+                            onClick = { selectedTab = tab },
+                            text = { Text(tab.name.lowercase().replaceFirstChar { it.uppercase() }) }
+                        )
+                    }
                 }
-            }
-            
-            Spacer(modifier = Modifier.height(24.dp))
-            Text(text = "Workout Plans", style = MaterialTheme.typography.headlineMedium)
-            Spacer(modifier = Modifier.height(8.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                plans.forEach { plan ->
-                    WorkoutPlanItem(
-                        plan = plan,
-                        onClick = {
-                            selectedPlan = plan
-                            activeForm = FitnessFormType.PLAN_DETAIL
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp)
+                ) {
+                    when (selectedTab) {
+                        FitnessTab.SESSIONS -> {
+                            Text(text = "Recent Workouts", style = MaterialTheme.typography.headlineMedium)
+                            Spacer(modifier = Modifier.height(16.dp))
+                            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                items(sessions, key = { it.id }) { session ->
+                                    val plan = plans.find { it.id == session.planId }
+                                    WorkoutSessionItem(
+                                        session = session,
+                                        plan = plan,
+                                        onClick = {
+                                            selectedSession = session
+                                            activeForm = FitnessFormType.SESSION_DETAIL
+                                        }
+                                    )
+                                }
+                            }
                         }
-                    )
+                        FitnessTab.PLANS -> {
+                            Text(text = "Workout Plans", style = MaterialTheme.typography.headlineMedium)
+                            Spacer(modifier = Modifier.height(16.dp))
+                            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                items(plans, key = { it.id }) { plan ->
+                                    WorkoutPlanItem(
+                                        plan = plan,
+                                        onClick = {
+                                            selectedPlan = plan
+                                            activeForm = FitnessFormType.PLAN_DETAIL
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                        FitnessTab.EXERCISES -> {
+                            Text(text = "Exercises", style = MaterialTheme.typography.headlineMedium)
+                            Spacer(modifier = Modifier.height(16.dp))
+                            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                items(exercises, key = { it.id }) { exercise ->
+                                    ExerciseItem(
+                                        exercise = exercise,
+                                        onClick = {
+                                            selectedExercise = exercise
+                                            activeForm = FitnessFormType.EDIT_EXERCISE
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
-            }
             }
         }
 

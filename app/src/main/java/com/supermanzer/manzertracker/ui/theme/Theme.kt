@@ -36,18 +36,20 @@ private val CoffeeLightColorScheme = lightColorScheme(
 )
 
 private val FitnessDarkColorScheme = darkColorScheme(
-    primary = FitnessDark2,
+    primary = Color.White, // High contrast for dark mode
     secondary = FitnessDark1,
     tertiary = FitnessDark3,
     onBackground = Color.White,
-    onSurface = Color.White
+    onSurface = Color.White,
+    onPrimary = Color.Black
 )
 
 private val FitnessLightColorScheme = lightColorScheme(
-    primary = FitnessLight2,
-    secondary = FitnessLight1,
+    primary = FitnessLightPrimary,
+    secondary = FitnessLightSecondary,
     onBackground = Color.Black,
-    onSurface = Color.Black
+    onSurface = Color.Black,
+    onPrimary = Color.White
 )
 
 @Composable

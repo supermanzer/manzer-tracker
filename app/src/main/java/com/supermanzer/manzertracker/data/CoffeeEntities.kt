@@ -4,7 +4,8 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
-import java.util.Date
+import java.time.Instant
+import java.time.LocalDate
 
 @Entity(tableName = "roasters")
 data class Roaster(
@@ -32,7 +33,7 @@ data class CoffeeBag(
     val origin: String? = null,
     val variety: String? = null,
     val process: String? = null,
-    val roastDate: Date? = null,
+    val roastDate: LocalDate? = null,
     val region: String? = null
 )
 
@@ -51,7 +52,7 @@ data class CoffeeBag(
 data class CoffeeBrew(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val bagId: Long,
-    val brewDate: Date = Date(),
+    val brewDate: Instant = Instant.now(),
     val method: String,
     val grindSize: Int? = null,
     val waterTemp: Int? = null,

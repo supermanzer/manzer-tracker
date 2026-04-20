@@ -9,20 +9,21 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -51,7 +52,11 @@ import com.supermanzer.manzertracker.ui.theme.CoffeeLightGradient1
 import com.supermanzer.manzertracker.ui.theme.CoffeeLightGradient2
 
 enum class CoffeeFormType {
-    NONE, BREW, ROASTER, BAG, BREW_DETAIL, EDIT_BREW, EDIT_BAG, EDIT_ROASTER
+    NONE, BREW, ROASTER, BAG, BREW_DETAIL, EDIT_BREW, EDIT_BAG, EDIT_ROASTER, BAG_DETAIL, ROASTER_DETAIL
+}
+
+enum class CoffeeTab {
+    BREWS, BAGS, ROASTERS
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -72,7 +77,8 @@ fun CoffeeScreen() {
     var selectedBag by remember { mutableStateOf<CoffeeBag?>(null) }
     var selectedRoaster by remember { mutableStateOf<Roaster?>(null) }
     
-    var showFabMenu by remember { mutableStateOf(false) }
+    var selectedTab by remember { mutableStateOf(CoffeeTab.BREWS) }
+    
     var showDeleteDialog by remember { mutableStateOf<Any?>(null) }
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -92,37 +98,15 @@ fun CoffeeScreen() {
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
             floatingActionButton = {
-            Box(modifier = Modifier.wrapContentSize()) {
-                FloatingActionButton(onClick = { showFabMenu = true }) {
+                FloatingActionButton(onClick = {
+                    activeForm = when (selectedTab) {
+                        CoffeeTab.BREWS -> CoffeeFormType.BREW
+                        CoffeeTab.BAGS -> CoffeeFormType.BAG
+                        CoffeeTab.ROASTERS -> CoffeeFormType.ROASTER
+                    }
+                }) {
                     Icon(Icons.Default.Add, contentDescription = "Add Item")
                 }
-                DropdownMenu(
-                    expanded = showFabMenu,
-                    onDismissRequest = { showFabMenu = false }
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("Add Brew") },
-                        onClick = {
-                            activeForm = CoffeeFormType.BREW
-                            showFabMenu = false
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Add Coffee Bag") },
-                        onClick = {
-                            activeForm = CoffeeFormType.BAG
-                            showFabMenu = false
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Add Roaster") },
-                        onClick = {
-                            activeForm = CoffeeFormType.ROASTER
-                            showFabMenu = false
-                        }
-                    )
-                }
-            }
         }
     ) { padding ->
         Box(
@@ -134,24 +118,85 @@ fun CoffeeScreen() {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp)
-
         ) {
-            Text(text = "Recent Brews", style = MaterialTheme.typography.headlineMedium)
-            Spacer(modifier = Modifier.height(16.dp))
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(brews) { brew ->
-                    val bag = bags.find { it.id == brew.bagId }
-                    val roaster = roasters.find { it.id == bag?.roasterId }
-                    BrewItem(
-                        brew = brew,
-                        bag = bag,
-                        roaster = roaster,
-                        onClick = {
-                            selectedBrew = brew
-                            activeForm = CoffeeFormType.BREW_DETAIL
-                        }
+            TabRow(
+                selectedTabIndex = selectedTab.ordinal,
+                containerColor = Color.Transparent,
+                contentColor = MaterialTheme.colorScheme.primary,
+                indicator = { tabPositions ->
+                    if (selectedTab.ordinal < tabPositions.size) {
+                        TabRowDefaults.SecondaryIndicator(
+                            Modifier.tabIndicatorOffset(tabPositions[selectedTab.ordinal])
+                        )
+                    }
+                }
+            ) {
+                CoffeeTab.entries.forEach { tab ->
+                    Tab(
+                        selected = selectedTab == tab,
+                        onClick = { selectedTab = tab },
+                        text = { Text(tab.name.lowercase().replaceFirstChar { it.uppercase() }) }
                     )
+                }
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
+            ) {
+                when (selectedTab) {
+                    CoffeeTab.BREWS -> {
+                        Text(text = "Recent Brews", style = MaterialTheme.typography.headlineMedium)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(brews, key = { it.id }) { brew ->
+                                val bag = bags.find { it.id == brew.bagId }
+                                val roaster = roasters.find { it.id == bag?.roasterId }
+                                BrewItem(
+                                    brew = brew,
+                                    bag = bag,
+                                    roaster = roaster,
+                                    onClick = {
+                                        selectedBrew = brew
+                                        activeForm = CoffeeFormType.BREW_DETAIL
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    CoffeeTab.BAGS -> {
+                        Text(text = "Coffee Bags", style = MaterialTheme.typography.headlineMedium)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(bags, key = { it.id }) { bag ->
+                                val roaster = roasters.find { it.id == bag.roasterId }
+                                BagItem(
+                                    bag = bag,
+                                    roaster = roaster,
+                                    onClick = {
+                                        selectedBag = bag
+                                        activeForm = CoffeeFormType.BAG_DETAIL
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    CoffeeTab.ROASTERS -> {
+                        Text(text = "Roasters", style = MaterialTheme.typography.headlineMedium)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(roasters, key = { it.id }) { roaster ->
+                                RoasterItem(
+                                    roaster = roaster,
+                                    onClick = {
+                                        selectedRoaster = roaster
+                                        activeForm = CoffeeFormType.ROASTER_DETAIL
+                                    }
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -231,21 +276,31 @@ fun CoffeeScreen() {
                             val bag = bags.find { it.id == brew.bagId }
                             val roaster = roasters.find { it.id == bag?.roasterId }
                             BrewDetail(
-                                brew = brew, 
-                                bag = bag, 
+                                brew = brew,
+                                bag = bag,
                                 roaster = roaster,
-                                onEditBrew = {
-                                    activeForm = CoffeeFormType.EDIT_BREW
-                                },
-                                onEditBag = {
-                                    selectedBag = bag
-                                    activeForm = CoffeeFormType.EDIT_BAG
-                                },
-                                onEditRoaster = {
-                                    selectedRoaster = roaster
-                                    activeForm = CoffeeFormType.EDIT_ROASTER
-                                },
+                                onEditBrew = { activeForm = CoffeeFormType.EDIT_BREW },
                                 onDeleteBrew = { showDeleteDialog = brew }
+                            )
+                        }
+                    }
+                    CoffeeFormType.BAG_DETAIL -> {
+                        selectedBag?.let { bag ->
+                            val roaster = roasters.find { it.id == bag.roasterId }
+                            BagDetail(
+                                bag = bag,
+                                roaster = roaster,
+                                onEditBag = { activeForm = CoffeeFormType.EDIT_BAG },
+                                onDeleteBag = { showDeleteDialog = bag }
+                            )
+                        }
+                    }
+                    CoffeeFormType.ROASTER_DETAIL -> {
+                        selectedRoaster?.let { roaster ->
+                            RoasterDetail(
+                                roaster = roaster,
+                                onEditRoaster = { activeForm = CoffeeFormType.EDIT_ROASTER },
+                                onDeleteRoaster = { showDeleteDialog = roaster }
                             )
                         }
                     }
@@ -280,6 +335,6 @@ fun CoffeeScreen() {
             )
         }
     }
-        }
+}
 }
 }

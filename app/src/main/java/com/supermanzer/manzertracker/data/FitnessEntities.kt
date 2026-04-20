@@ -4,7 +4,7 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
-import java.util.Date
+import java.time.Instant
 
 @Entity(tableName = "exercises")
 data class Exercise(
@@ -45,8 +45,8 @@ data class WorkoutPlanExercise(
 data class WorkoutSession(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val planId: Long? = null,
-    val startTime: Date = Date(),
-    val endTime: Date? = null,
+    val startTime: Instant = Instant.now(),
+    val endTime: Instant? = null,
     val notes: String? = null
 )
 

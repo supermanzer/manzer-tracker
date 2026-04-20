@@ -39,8 +39,11 @@ import androidx.compose.ui.unit.dp
 import com.supermanzer.manzertracker.data.CoffeeBag
 import com.supermanzer.manzertracker.data.CoffeeBrew
 import com.supermanzer.manzertracker.data.Roaster
-import java.text.SimpleDateFormat
-import java.util.Date
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -101,7 +104,7 @@ fun CoffeeBrewForm(
                                 Text(text = "${roaster?.name ?: "Unknown"} - ${bag.name}", fontWeight = FontWeight.Bold)
                                 bag.roastDate?.let {
                                     Text(
-                                        text = "Roasted: ${SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(it)}",
+                                        text = "Roasted: ${DateTimeFormatter.ofPattern("MMM dd, yyyy", Locale.getDefault()).format(it)}",
                                         style = MaterialTheme.typography.bodySmall
                                     )
                                 }
@@ -185,7 +188,7 @@ fun CoffeeBrewForm(
                             grindSize = grindSize,
                             rating = rating.toIntOrNull(),
                             notes = notes,
-                            brewDate = Date()
+                            brewDate = Instant.now()
                         )
                     )
                 }
@@ -246,7 +249,7 @@ fun RoasterForm(
 fun CoffeeBagForm(
     bag: CoffeeBag? = null,
     roasters: List<Roaster>,
-    onSave: (Long, String, String?, String?, String?, Date?, String?) -> Unit
+    onSave: (Long, String, String?, String?, String?, LocalDate?, String?) -> Unit
 ) {
     var selectedRoaster by remember { mutableStateOf(roasters.find { it.id == bag?.roasterId }) }
     var name by remember { mutableStateOf(bag?.name ?: "") }
@@ -259,7 +262,7 @@ fun CoffeeBagForm(
 
     var showDatePicker by remember { mutableStateOf(false) }
     val datePickerState = rememberDatePickerState(
-        initialSelectedDateMillis = roastDate?.time
+        initialSelectedDateMillis = roastDate?.atStartOfDay(ZoneOffset.UTC)?.toInstant()?.toEpochMilli()
     )
 
     Column(
@@ -335,7 +338,7 @@ fun CoffeeBagForm(
         Spacer(modifier = Modifier.height(8.dp))
         
         OutlinedTextField(
-            value = roastDate?.let { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(it) } ?: "",
+            value = roastDate?.let { DateTimeFormatter.ofPattern("MMM dd, yyyy", Locale.getDefault()).format(it) } ?: "",
             onValueChange = {},
             label = { Text("Roast Date (Optional)") },
             readOnly = true,
@@ -357,7 +360,7 @@ fun CoffeeBagForm(
                 confirmButton = {
                     TextButton(onClick = {
                         datePickerState.selectedDateMillis?.let {
-                            roastDate = Date(it)
+                            roastDate = LocalDate.ofInstant(Instant.ofEpochMilli(it), ZoneOffset.UTC)
                         }
                         showDatePicker = false
                     }) {

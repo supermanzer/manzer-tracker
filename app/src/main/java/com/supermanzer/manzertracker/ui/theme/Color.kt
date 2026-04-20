@@ -35,3 +35,5 @@ val FitnessDark3 = Color(0xFF4CC3FF)
 
 val FitnessLight1 = Color(0xFFE3FDF5)
 val FitnessLight2 = Color(0xFFFFE6FA)
+val FitnessLightPrimary = Color(0xFF512DA8) // Deep Purple 700
+val FitnessLightSecondary = Color(0xFF00796B) // Teal 700
