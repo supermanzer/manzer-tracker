@@ -5,6 +5,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 
 private val CoffeeDarkColorScheme = darkColorScheme(
@@ -28,6 +29,21 @@ private val CoffeeLightColorScheme = lightColorScheme(
     onBackground = Color.Black,
     onSurface = Color.Black
 )
+
+// Screen backdrop shared by every top-level destination.
+@Composable
+fun coffeeGradient(darkTheme: Boolean = isSystemInDarkTheme()): Brush =
+    Brush.linearGradient(
+        colors = if (darkTheme) {
+            listOf(CoffeeDarkGradient1, CoffeeDarkGradient2)
+        } else {
+            listOf(CoffeeLightGradient1, CoffeeLightGradient2)
+        }
+    )
+
+@Composable
+fun chartMarkColor(darkTheme: Boolean = isSystemInDarkTheme()): Color =
+    if (darkTheme) ChartMarkDark else ChartMarkLight
 
 @Composable
 fun BrewBuddyTheme(

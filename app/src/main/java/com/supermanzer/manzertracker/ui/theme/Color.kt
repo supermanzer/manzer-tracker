@@ -19,3 +19,8 @@ val CoffeeLightBackground = Color(0xFFFDF5E6) // OldLace / Milky
 val CoffeeLightSurface = Color(0xFFEFEBE9)
 val CoffeeLightPrimary = Color(0xFF8D6E63)
 val CoffeeLightSecondary = Color(0xFFBCAAA4)
+
+// Chart marks. The theme browns are too grey and, in dark mode, too low-contrast to carry data,
+// so charts use a caramel that clears 3:1 against the card surface in each mode.
+val ChartMarkLight = Color(0xFFA85A1A)
+val ChartMarkDark = Color(0xFFC97B3A)

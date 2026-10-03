@@ -13,7 +13,7 @@ Built with Kotlin, Jetpack Compose, Room, and MVVM architecture.
 4. [Architecture Pattern (MVVM)](#4-architecture-pattern-mvvm)
 5. [Data Layer — Room Database](#5-data-layer--room-database)
 6. [ViewModel Layer](#6-viewmodel-layer)
-7. [UI Layer — App Entry Point](#7-ui-layer--app-entry-point)
+7. [UI Layer — Navigation](#7-ui-layer--navigation)
 8. [UI Layer — Theming](#8-ui-layer--theming)
 9. [UI Layer — Screens and Compose Patterns](#9-ui-layer--screens-and-compose-patterns)
 10. [Dependency Injection (Manual)](#10-dependency-injection-manual)
@@ -24,13 +24,14 @@ Built with Kotlin, Jetpack Compose, Room, and MVVM architecture.
 
 ## 1. Project Overview
 
-BrewBuddy is a single-activity, single-screen Android app that tracks a three-level coffee hierarchy:
+BrewBuddy is a single-activity Android app with two top-level destinations, switched with a bottom navigation bar:
 
-```
-Roasters → Coffee bags → Individual brews with brew parameters and ratings
-```
+| Destination | What it does |
+|---|---|
+| **Coffee** | Records the three-level hierarchy: Roasters → Coffee bags → Individual brews with brew parameters and ratings |
+| **Insights** | Read-only charts and summary figures derived from those records |
 
-Content is organized into tabs (Brews / Bags / Roasters). Adding and editing records is done via modal bottom sheets that slide up over the list.
+Within Coffee, content is organized into tabs (Brews / Bags / Roasters). Adding and editing records is done via modal bottom sheets that slide up over the list.
 
 > **History:** the app began life as "ManzerTracker" and also tracked fitness workouts. That feature was removed in schema version 5. The Kotlin package (`com.supermanzer.manzertracker`), `applicationId`, and database file name (`manzer_tracker_db`) keep the old name on purpose — see [5.4](#54-appdatabase-and-singleton-pattern).
 
@@ -44,6 +45,7 @@ All dependency versions are centralized in `gradle/libs.versions.toml` (the Grad
 |---|---|
 | **Jetpack Compose + Material3** | Declarative UI toolkit. Replaces XML layouts entirely. |
 | **Compose BOM** | Bill of Materials — ensures all Compose libraries use compatible versions without specifying each individually. |
+| **Navigation Compose** | In-app routing between the Coffee and Insights destinations. |
 | **Room** | SQLite ORM. Provides compile-time SQL validation, DAO interfaces, and reactive `Flow`-based queries. |
 | **KSP (Kotlin Symbol Processing)** | Code generator used by Room to create DAO implementation classes at build time. Replaces the older KAPT. |
 | **Lifecycle ViewModel Compose** | Provides the `viewModel()` composable function for retrieving ViewModels scoped to a composition. |
@@ -59,29 +61,35 @@ All dependency versions are centralized in `gradle/libs.versions.toml` (the Grad
 ```
 app/src/main/java/com/supermanzer/manzertracker/
 ├── BrewBuddyApplication.kt         # Application subclass — holds the DB singleton
-├── MainActivity.kt                 # Single activity — applies the theme and hosts CoffeeScreen
+├── MainActivity.kt                 # Single activity — theme, bottom navigation bar, NavHost
 │
 ├── data/                           # Room data layer
 │   ├── AppDatabase.kt              # @Database declaration, migrations, singleton factory
 │   ├── Converters.kt               # TypeConverters: Instant / LocalDate <-> Long
 │   ├── CoffeeEntities.kt           # @Entity: Roaster, CoffeeBag, CoffeeBrew
-│   └── CoffeeDao.kt                # @Dao: CRUD + Flow queries for coffee
+│   ├── CoffeeDao.kt                # @Dao: CRUD + Flow queries for coffee
+│   └── BrewInsights.kt             # Pure functions that summarise brews for the Insights screen
 │
 └── ui/
+    ├── navigation/
+    │   └── Screen.kt               # Sealed class defining routes and nav bar items
     ├── theme/
-    │   ├── Color.kt                # Color constants for the coffee theme
+    │   ├── Color.kt                # Color constants for the coffee theme and chart marks
     │   ├── Type.kt                 # Typography scale
     │   └── Theme.kt                # BrewBuddyTheme composable — light and dark color schemes
     ├── viewmodels/
-    │   └── CoffeeViewModel.kt      # State + actions for coffee data
+    │   ├── CoffeeViewModel.kt      # State + actions for coffee data
+    │   └── InsightsViewModel.kt    # Combines the three tables into one BrewInsights state
     ├── components/                 # One composable per file
     │   ├── BrewItem.kt / BagItem.kt / RoasterItem.kt        # List cards
     │   ├── BrewDetail.kt / BagDetail.kt / RoasterDetail.kt  # Bottom sheet detail views
     │   ├── DetailSection.kt / DetailRow.kt                  # Building blocks for detail views
-    │   └── DropdownField.kt / WheelNumberPicker.kt          # Reusable form inputs
+    │   ├── DropdownField.kt / WheelNumberPicker.kt / WheelPickerField.kt  # Reusable form inputs
+    │   └── StatTile.kt / ChartCard.kt / RatingLineChart.kt / RatingBarList.kt / BrewConfigList.kt  # Insights building blocks
     └── screens/
         ├── CoffeeScreen.kt         # Tab host, FAB, bottom sheet orchestration
-        └── CoffeeForms.kt          # CoffeeBrewForm, RoasterForm, CoffeeBagForm
+        ├── CoffeeForms.kt          # CoffeeBrewForm, RoasterForm, CoffeeBagForm
+        └── InsightsScreen.kt       # Stat tiles and rating charts
 ```
 
 ---
@@ -98,7 +106,7 @@ The app follows **MVVM (Model-View-ViewModel)** with a clear separation of conce
                 │ observes / calls
 ┌───────────────▼─────────────────┐
 │         ViewModel               │  Holds UI state as StateFlow, launches coroutines
-│  CoffeeViewModel                │
+│  CoffeeViewModel / Insights...  │
 └───────────────┬─────────────────┘
                 │ suspends / collects Flow
 ┌───────────────▼─────────────────┐
@@ -300,21 +308,41 @@ The `viewModel()` composable from `lifecycle-viewmodel-compose` handles ViewMode
 
 ---
 
-## 7. UI Layer — App Entry Point
+## 7. UI Layer — Navigation
 
-With a single feature there is nothing to navigate between, so `MainActivity` hosts the one screen directly:
+### 7.1 Screen Sealed Class
 
 ```kotlin
-setContent {
-    BrewBuddyTheme {
-        CoffeeScreen()
+sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
+    object Coffee : Screen("coffee", "Coffee", Icons.Default.Coffee)
+    object Insights : Screen("insights", "Insights", Icons.Default.BarChart)
+}
+
+val items = listOf(Screen.Coffee, Screen.Insights)
+```
+
+A `sealed class` restricts which subclasses can exist. `object` singletons are used because routes are stateless. Adding a top-level destination means adding an `object` here, adding it to `items`, and adding a `composable(...)` entry to the `NavHost`.
+
+### 7.2 NavHost Setup in MainActivity
+
+```kotlin
+Scaffold(
+    bottomBar = { NavigationBar { items.forEach { screen -> NavigationBarItem(...) } } }
+) { innerPadding ->
+    NavHost(
+        navController, startDestination = Screen.Coffee.route,
+        modifier = Modifier.padding(innerPadding).consumeWindowInsets(innerPadding)
+    ) {
+        composable(Screen.Coffee.route) { CoffeeScreen() }
+        composable(Screen.Insights.route) { InsightsScreen() }
     }
 }
 ```
 
-There is no `NavHost`, no bottom bar, and no Navigation Compose dependency. A bottom navigation bar with one destination is a Material anti-pattern — the guidelines call for three to five. In-screen movement between Brews, Bags, and Roasters is handled by the `TabRow` inside `CoffeeScreen` (see section 9).
+- `popUpTo(startDestination) { saveState = true }`, `launchSingleTop`, and `restoreState` on each `navigate` call keep one copy of each destination and restore its state (selected tab, scroll position) when you come back.
+- `consumeWindowInsets(innerPadding)` matters because `CoffeeScreen` has its own `Scaffold` for the FAB. Without it the inner Scaffold would pad for the system bars a second time.
 
-If a second top-level destination is ever added, reintroduce `androidx.navigation:navigation-compose`, a sealed `Screen` class describing the routes, and a `NavHost` in `MainActivity`.
+> Material guidance suggests a navigation bar for three to five destinations. Two is below that; it is used here because the two sections are genuinely separate jobs (recording vs. reviewing).
 
 ---
 
@@ -489,9 +517,9 @@ ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !exp
 
 ### 9.9 Reusable Components
 
-The `ui/components/` package provides `DropdownField<T>`, a generic wrapper around the exposed dropdown above for fields with a fixed set of choices. The brew form uses it for Brew Method (the `BrewMethod` enum's labels), Grind Size (1–30), and Rating (1–5, or None). It is *stateless* about the selection — the caller owns `selected` and receives `onSelected` — and only keeps its own open/closed flag. This is **state hoisting**.
+The `ui/components/` package provides `DropdownField<T>`, a generic wrapper around the exposed dropdown above for fields with a fixed set of choices. The brew form uses it for Brew Method (the `BrewMethod` enum's labels) and Rating (1–5, or None). It is *stateless* about the selection — the caller owns `selected` and receives `onSelected` — and only keeps its own open/closed flag. This is **state hoisting**.
 
-`WheelNumberPicker` is a scrolling number wheel, which Compose does not ship. It is a `LazyColumn` with `rememberSnapFlingBehavior`, so a fling always settles with one number centred; `derivedStateOf` works out which item is nearest the centre, and `snapshotFlow` reports it to the caller. The brew form shows it in a dialog for Water Temp (150–212 °F).
+`WheelNumberPicker` is a scrolling number wheel, which Compose does not ship. It is a `LazyColumn` with `rememberSnapFlingBehavior`, so a fling always settles with one number centred; `derivedStateOf` works out which item is nearest the centre, and `snapshotFlow` reports it to the caller. `WheelPickerField` wraps it as a form input: a read-only field that opens the wheel in a dialog and reports the value only on OK. The brew form uses it for Water Temp (150–212 °F) and Grind Size (1–30).
 
 It also provides two low-level composables used throughout detail views:
 
@@ -499,6 +527,27 @@ It also provides two low-level composables used throughout detail views:
 - `DetailRow(label, value, onEdit?)` — a single key/value pair row
 
 These follow the **slot API pattern**: the `content` lambda accepts a `@Composable` block, letting callers inject arbitrary child composables.
+
+### 9.10 The Insights Screen
+
+`InsightsScreen` is read-only and follows a stricter version of the same MVVM flow: all the arithmetic lives outside Compose.
+
+```
+Room Flows (brews, bags, roasters) + selected bag + selected roaster
+        │  combine
+        ▼
+buildBrewInsights(...)   ← pure function in data/BrewInsights.kt, unit-tested on the JVM
+        │
+        ▼
+StateFlow<BrewInsights?>  →  InsightsScreen draws it
+```
+
+- **One state object.** The ViewModel exposes a single `BrewInsights` rather than several flows, so the screen always draws a consistent snapshot. It is `null` until the first read arrives, which lets the screen tell "loading" from "no data".
+- **Pure aggregation.** `buildBrewInsights` takes lists and returns a data class. It needs no Android classes, so `BrewInsightsTest` covers it without an emulator.
+- **`RatingLineChart`** is drawn on a `Canvas`: a fixed 1–5 y-axis (so charts for different bags are comparable), a real time x-axis, 2dp line, and markers on a ring of the card colour. `pointerInput` + `detectTapGestures` selects the nearest point, and a `semantics` description gives screen readers a text summary.
+- **`RatingBarList`** deliberately does *not* use `Canvas`. Bars are `Box`es sized with `fillMaxWidth(fraction)`, so every label and value is real text that scales with font size and is read by TalkBack. Each row shows the brew count beside the average, because an average of one brew should not look as trustworthy as an average of twenty.
+- **`BrewConfigList`** shows the three best-rated recipes (water temperature, grind size, ratio) for a chosen roaster. It is a ranked list, not a chart, because the recipe itself is what you read. `topBrewConfigs` groups rated brews by that triple and ranks by average, then by how often the recipe was brewed. A recipe needs `MIN_CONFIG_BREWS` (5) rated brews to qualify, and its average covers all of them.
+- **Chart colour** comes from `chartMarkColor()`, not the theme's browns: those are too grey and, in dark mode, fall below the 3:1 contrast needed for graphics.
 
 ---
 
@@ -519,7 +568,7 @@ The app uses manual dependency injection rather than a framework like Hilt. Here
    val viewModel: CoffeeViewModel = viewModel(factory = CoffeeViewModelFactory(database.coffeeDao()))
    ```
 
-This works cleanly for a simple single-screen app. The downside is that the Screen composable is tightly coupled to `BrewBuddyApplication` — it knows how to resolve its own dependencies rather than receiving them from outside.
+This works cleanly for a small app. The downside is that the Screen composable is tightly coupled to `BrewBuddyApplication` — it knows how to resolve its own dependencies rather than receiving them from outside.
 
 ---
 
@@ -643,9 +692,9 @@ All `Icon` composables use hardcoded English strings for `contentDescription`. T
 
 The `BAG_DETAIL` bottom sheet shows bag metadata but provides no way to see which brews used that bag. A natural improvement would be a "Brews using this bag" section showing filtered brew items.
 
-**I. No tests**
+**I. Few tests**
 
-The project contains only the generated placeholder tests. Consider adding:
+Only the Insights aggregation (`BrewInsightsTest`) is covered. Consider adding:
 - Room DAO tests using `Room.inMemoryDatabaseBuilder` (run on device/emulator)
 - ViewModel unit tests using `kotlinx-coroutines-test` and a fake DAO
 - Compose UI tests for critical flows using `ComposeTestRule`

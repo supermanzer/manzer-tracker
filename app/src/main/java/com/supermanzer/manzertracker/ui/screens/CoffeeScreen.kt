@@ -1,7 +1,6 @@
 package com.supermanzer.manzertracker.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,7 +33,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -51,10 +49,7 @@ import com.supermanzer.manzertracker.ui.components.RoasterDetail
 import com.supermanzer.manzertracker.ui.components.RoasterItem
 import com.supermanzer.manzertracker.ui.viewmodels.CoffeeViewModel
 import com.supermanzer.manzertracker.ui.viewmodels.CoffeeViewModelFactory
-import com.supermanzer.manzertracker.ui.theme.CoffeeDarkGradient1
-import com.supermanzer.manzertracker.ui.theme.CoffeeDarkGradient2
-import com.supermanzer.manzertracker.ui.theme.CoffeeLightGradient1
-import com.supermanzer.manzertracker.ui.theme.CoffeeLightGradient2
+import com.supermanzer.manzertracker.ui.theme.coffeeGradient
 
 enum class CoffeeFormType {
     NONE, BREW, ROASTER, BAG, BREW_DETAIL, EDIT_BREW, EDIT_BAG, EDIT_ROASTER, BAG_DETAIL, ROASTER_DETAIL
@@ -88,16 +83,7 @@ fun CoffeeScreen() {
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    val darkTheme = isSystemInDarkTheme()
-    val coffeeGradient = if (darkTheme) {
-        Brush.linearGradient(
-            colors = listOf(CoffeeDarkGradient1, CoffeeDarkGradient2)
-        )
-    } else {
-        Brush.linearGradient(
-            colors = listOf(CoffeeLightGradient1, CoffeeLightGradient2)
-        )
-    }
+    val coffeeGradient = coffeeGradient()
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,

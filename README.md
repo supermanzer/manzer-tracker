@@ -12,6 +12,15 @@ A personal Android app for tracking the thing Ryan Manzer cares about most: coff
 - **Coffee Bags** — individual purchases with origin, variety, process type, roast date, and region
 - **Brews** — individual brewing sessions linked to a bag, capturing method, grind size, water temperature, brew ratio, and personal taste ratings with notes, plus ideas for the next brew that reappear when you next brew the same bag
 
+## Insights
+
+A second tab summarises what you have logged:
+
+- **Stat tiles** — total brews, average rating, brews in the last 30 days
+- **Rating over time** — a line chart for one coffee bag at a time
+- **Best recipes by roaster** — pick a roaster to see its three best-rated combinations of water temperature, grind size, and ratio (a recipe needs at least five rated brews to qualify)
+- **Average rating by roaster**, **by brew method**, and **top-rated bags** — bar charts, each showing how many brews sit behind the average
+
 ---
 
 ## Tech Stack
@@ -23,6 +32,7 @@ A personal Android app for tracking the thing Ryan Manzer cares about most: coff
 | Architecture | MVVM with ViewModels and StateFlow |
 | Database | Room (local, SQLite-backed) |
 | Async | Kotlin Coroutines + Flow |
+| Navigation | Jetpack Navigation Compose |
 | Build | Gradle with KSP |
 | Min SDK | 26 (Android 8.0) |
 | Target SDK | 35 |
@@ -36,11 +46,13 @@ app/src/main/java/com/supermanzer/manzertracker/
 ├── data/
 │   ├── Entities        # Room entities (Roaster, CoffeeBag, CoffeeBrew)
 │   ├── CoffeeDao       # CRUD + Flow queries
+│   ├── BrewInsights    # Pure summary functions for the Insights tab
 │   └── AppDatabase     # Room singleton, version 6
 ├── ui/
-│   ├── components/     # Cards, detail views, and form inputs, one composable per file
-│   ├── screens/        # CoffeeScreen and its forms
-│   ├── viewmodels/     # CoffeeViewModel
+│   ├── components/     # Cards, detail views, form inputs, and charts, one composable per file
+│   ├── screens/        # CoffeeScreen, its forms, and InsightsScreen
+│   ├── viewmodels/     # CoffeeViewModel, InsightsViewModel
+│   ├── navigation/     # Sealed route definitions for the bottom nav bar
 │   └── theme/          # Color schemes, typography, dark/light theming
 ├── MainActivity.kt
 └── BrewBuddyApplication.kt

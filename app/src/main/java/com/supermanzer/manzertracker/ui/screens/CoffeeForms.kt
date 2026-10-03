@@ -1,9 +1,7 @@
 package com.supermanzer.manzertracker.ui.screens
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,7 +13,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarToday
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -46,7 +43,7 @@ import com.supermanzer.manzertracker.data.CoffeeBag
 import com.supermanzer.manzertracker.data.CoffeeBrew
 import com.supermanzer.manzertracker.data.Roaster
 import com.supermanzer.manzertracker.ui.components.DropdownField
-import com.supermanzer.manzertracker.ui.components.WheelNumberPicker
+import com.supermanzer.manzertracker.ui.components.WheelPickerField
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -55,6 +52,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 private val WaterTempRangeF = 150..212
+private val GrindSizeRange = 1..30
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -77,7 +75,6 @@ fun CoffeeBrewForm(
     var notes by remember { mutableStateOf(brew?.notes ?: "") }
     var nextBrewIdeas by remember { mutableStateOf(brew?.nextBrewIdeas ?: "") }
     var expanded by remember { mutableStateOf(false) }
-    var showTempPicker by remember { mutableStateOf(false) }
 
     // Only for a new brew: the latest earlier brew of the selected bag, if it left any ideas.
     val lastBrewWithIdeas = remember(brew, selectedBag, previousBrews) {
@@ -185,30 +182,20 @@ fun CoffeeBrewForm(
         }
         Spacer(modifier = Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Box(modifier = Modifier.weight(1f)) {
-                OutlinedTextField(
-                    value = "$waterTemp °F",
-                    onValueChange = {},
-                    readOnly = true,
-                    singleLine = true,
-                    label = { Text("Water Temp") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                // A read-only text field swallows taps, so a transparent layer on top catches them.
-                Box(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) { showTempPicker = true }
-                )
-            }
-            DropdownField(
+            WheelPickerField(
+                label = "Water Temp",
+                value = waterTemp,
+                range = WaterTempRangeF,
+                onValueChange = { waterTemp = it },
+                modifier = Modifier.weight(1f),
+                dialogTitle = "Water Temp (°F)",
+                valueLabel = { "$it °F" }
+            )
+            WheelPickerField(
                 label = "Grind Size",
-                options = (1..30).toList(),
-                selected = grindSize,
-                onSelected = { grindSize = it },
+                value = grindSize,
+                range = GrindSizeRange,
+                onValueChange = { grindSize = it },
                 modifier = Modifier.weight(1f)
             )
             DropdownField(
@@ -218,34 +205,6 @@ fun CoffeeBrewForm(
                 onSelected = { rating = it },
                 modifier = Modifier.weight(1f),
                 optionLabel = { it?.toString() ?: "None" }
-            )
-        }
-        if (showTempPicker) {
-            var pendingTemp by remember { mutableStateOf(waterTemp.coerceIn(WaterTempRangeF)) }
-            AlertDialog(
-                onDismissRequest = { showTempPicker = false },
-                title = { Text("Water Temp (°F)") },
-                text = {
-                    WheelNumberPicker(
-                        initialValue = pendingTemp,
-                        range = WaterTempRangeF,
-                        onValueChange = { pendingTemp = it },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                },
-                confirmButton = {
-                    TextButton(onClick = {
-                        waterTemp = pendingTemp
-                        showTempPicker = false
-                    }) {
-                        Text("OK")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showTempPicker = false }) {
-                        Text("Cancel")
-                    }
-                }
             )
         }
 
