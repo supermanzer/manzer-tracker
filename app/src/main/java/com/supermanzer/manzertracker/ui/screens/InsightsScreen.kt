@@ -12,11 +12,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -25,6 +30,7 @@ import com.supermanzer.manzertracker.BrewBuddyApplication
 import com.supermanzer.manzertracker.data.BrewInsights
 import com.supermanzer.manzertracker.data.MIN_CONFIG_BREWS
 import com.supermanzer.manzertracker.data.RECENT_DAYS
+import com.supermanzer.manzertracker.ui.components.BagDetail
 import com.supermanzer.manzertracker.ui.components.BrewConfigList
 import com.supermanzer.manzertracker.ui.components.ChartCard
 import com.supermanzer.manzertracker.ui.components.DropdownField
@@ -37,6 +43,7 @@ import com.supermanzer.manzertracker.ui.viewmodels.InsightsViewModel
 import com.supermanzer.manzertracker.ui.viewmodels.InsightsViewModelFactory
 import java.util.Locale
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InsightsScreen() {
     val context = LocalContext.current
@@ -45,6 +52,7 @@ fun InsightsScreen() {
         factory = InsightsViewModelFactory(database.coffeeDao())
     )
     val insights by viewModel.insights.collectAsState()
+    var detailBagId by remember { mutableStateOf<Long?>(null) }
 
     Box(
         modifier = Modifier
@@ -64,9 +72,17 @@ fun InsightsScreen() {
                 InsightsContent(
                     insights = it,
                     onBagSelected = viewModel::selectBag,
-                    onRoasterSelected = viewModel::selectRoaster
+                    onRoasterSelected = viewModel::selectRoaster,
+                    onBagDetailRequested = { detailBagId = it }
                 )
             }
+        }
+    }
+
+    // Looked up from current data, so the sheet closes by itself if the bag stops being listed.
+    detailBagId?.let { insights?.topBagDetails?.get(it) }?.let { details ->
+        ModalBottomSheet(onDismissRequest = { detailBagId = null }) {
+            BagDetail(bag = details.bag, roaster = details.roaster)
         }
     }
 }
@@ -75,7 +91,8 @@ fun InsightsScreen() {
 private fun InsightsContent(
     insights: BrewInsights,
     onBagSelected: (Long) -> Unit,
-    onRoasterSelected: (Long) -> Unit
+    onRoasterSelected: (Long) -> Unit,
+    onBagDetailRequested: (Long) -> Unit
 ) {
     val markColor = chartMarkColor()
 
@@ -163,7 +180,11 @@ private fun InsightsContent(
         RatingBarList(items = insights.byMethod, barColor = markColor)
     }
 
-    ChartCard(title = "Top-rated bags", subtitle = "Out of 5, best ${insights.topBags.size}") {
-        RatingBarList(items = insights.topBags, barColor = markColor)
+    ChartCard(title = "Top-rated bags", subtitle = "Out of 5, best ${insights.topBags.size}. Tap a bag for details.") {
+        RatingBarList(
+            items = insights.topBags,
+            barColor = markColor,
+            onItemClick = { item -> item.id?.let(onBagDetailRequested) }
+        )
     }
 }

@@ -61,6 +61,17 @@ class BrewInsightsTest {
     }
 
     @Test
+    fun top_bags_carry_ids_and_details_for_opening_them() {
+        val result = insights()
+        assertEquals(listOf(10L, 11L, 20L), result.topBags.map { it.id })
+        assertEquals(setOf(10L, 11L, 20L), result.topBagDetails.keys)
+        assertEquals("Geometry", result.topBagDetails.getValue(10).bag.name)
+        assertEquals("Onyx", result.topBagDetails.getValue(10).roaster?.name)
+        // Rows that are not a single record cannot be opened.
+        assertEquals(listOf<Long?>(null, null), result.byRoaster.map { it.id })
+    }
+
+    @Test
     fun method_labels_are_normalised_to_the_known_list() {
         // V60 and French Press both average 4.0; the tie goes to the one with more brews.
         assertEquals(

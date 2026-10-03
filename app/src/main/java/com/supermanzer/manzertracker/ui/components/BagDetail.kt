@@ -29,8 +29,8 @@ import java.util.Locale
 fun BagDetail(
     bag: CoffeeBag,
     roaster: Roaster?,
-    onEditBag: () -> Unit,
-    onDeleteBag: () -> Unit
+    onEditBag: (() -> Unit)? = null,
+    onDeleteBag: (() -> Unit)? = null
 ) {
     Column(
         modifier = Modifier
@@ -46,11 +46,16 @@ fun BagDetail(
         ) {
             Text(text = "Coffee Bag Details", style = MaterialTheme.typography.headlineSmall)
             Row {
-                IconButton(onClick = onEditBag) {
-                    Icon(Icons.Default.Edit, contentDescription = "Edit Bag")
+                // Left out where the details are shown read-only (the Insights tab).
+                onEditBag?.let {
+                    IconButton(onClick = it) {
+                        Icon(Icons.Default.Edit, contentDescription = "Edit Bag")
+                    }
                 }
-                IconButton(onClick = onDeleteBag) {
-                    Icon(Icons.Default.Delete, contentDescription = "Delete Bag", tint = MaterialTheme.colorScheme.error)
+                onDeleteBag?.let {
+                    IconButton(onClick = it) {
+                        Icon(Icons.Default.Delete, contentDescription = "Delete Bag", tint = MaterialTheme.colorScheme.error)
+                    }
                 }
             }
         }

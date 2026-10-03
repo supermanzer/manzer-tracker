@@ -5,7 +5,10 @@ import java.time.Instant
 
 data class RatingPoint(val date: Instant, val rating: Int)
 
-data class RatingAverage(val label: String, val average: Double, val count: Int)
+// id is set only when a row stands for one record that can be opened (a bag).
+data class RatingAverage(val label: String, val average: Double, val count: Int, val id: Long? = null)
+
+data class BagDetails(val bag: CoffeeBag, val roaster: Roaster?)
 
 data class BagOption(val bagId: Long, val label: String)
 
@@ -32,6 +35,7 @@ data class BrewInsights(
     val byRoaster: List<RatingAverage> = emptyList(),
     val byMethod: List<RatingAverage> = emptyList(),
     val topBags: List<RatingAverage> = emptyList(),
+    val topBagDetails: Map<Long, BagDetails> = emptyMap(),
     val ratedRoasters: List<RoasterOption> = emptyList(),
     val selectedRoaster: RoasterOption? = null,
     val topConfigs: List<BrewConfig> = emptyList()
@@ -72,6 +76,13 @@ fun buildBrewInsights(
         .map { RoasterOption(it.id, it.name) }
     val selectedRoaster = ratedRoasters.find { it.roasterId == selectedRoasterId } ?: ratedRoasters.firstOrNull()
 
+    val topBags = averageRatingBy(
+        brews,
+        keyOf = { brew -> brew.bagId.takeIf { it in bagsById } },
+        labelOf = { bagsById.getValue(it).name },
+        idOf = { it }
+    ).take(TOP_BAG_COUNT)
+
     return BrewInsights(
         brewCount = brews.size,
         recentBrewCount = brews.count { it.brewDate >= now.minus(Duration.ofDays(RECENT_DAYS)) },
@@ -89,11 +100,11 @@ fun buildBrewInsights(
             keyOf = { brew -> BrewMethod.fromLabel(brew.method)?.label ?: brew.method.trim().takeIf { it.isNotEmpty() } },
             labelOf = { it }
         ),
-        topBags = averageRatingBy(
-            brews,
-            keyOf = { brew -> brew.bagId.takeIf { it in bagsById } },
-            labelOf = { bagsById.getValue(it).name }
-        ).take(TOP_BAG_COUNT),
+        topBags = topBags,
+        topBagDetails = topBags.mapNotNull { it.id }.associateWith { id ->
+            val bag = bagsById.getValue(id)
+            BagDetails(bag, roastersById[bag.roasterId])
+        },
         ratedRoasters = ratedRoasters,
         selectedRoaster = selectedRoaster,
         topConfigs = selectedRoaster?.let { roaster ->
@@ -136,7 +147,8 @@ fun ratingsOverTime(brews: List<CoffeeBrew>, bagId: Long): List<RatingPoint> =
 fun <K : Any> averageRatingBy(
     brews: List<CoffeeBrew>,
     keyOf: (CoffeeBrew) -> K?,
-    labelOf: (K) -> String
+    labelOf: (K) -> String,
+    idOf: (K) -> Long? = { null }
 ): List<RatingAverage> =
     brews
         .mapNotNull { brew ->
@@ -145,7 +157,7 @@ fun <K : Any> averageRatingBy(
             if (key != null && rating != null) key to rating else null
         }
         .groupBy({ it.first }, { it.second })
-        .map { (key, ratings) -> RatingAverage(labelOf(key), ratings.average(), ratings.size) }
+        .map { (key, ratings) -> RatingAverage(labelOf(key), ratings.average(), ratings.size, idOf(key)) }
         .sortedWith(
             compareByDescending<RatingAverage> { it.average }
                 .thenByDescending { it.count }

@@ -19,7 +19,7 @@ A second tab summarises what you have logged:
 - **Stat tiles** — total brews, average rating, brews in the last 30 days
 - **Rating over time** — a line chart for one coffee bag at a time
 - **Best recipes by roaster** — pick a roaster to see its three best-rated combinations of water temperature, grind size, and ratio (a recipe needs at least five rated brews to qualify)
-- **Average rating by roaster**, **by brew method**, and **top-rated bags** — bar charts, each showing how many brews sit behind the average
+- **Average rating by roaster**, **by brew method**, and **top-rated bags** — bar charts, each showing how many brews sit behind the average; tap a top-rated bag to see its details
 
 ---
 
