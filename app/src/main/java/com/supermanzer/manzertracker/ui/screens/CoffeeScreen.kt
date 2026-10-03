@@ -35,15 +35,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
-import com.supermanzer.manzertracker.ui.theme.ManzerTrackerTheme
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.supermanzer.manzertracker.ManzerTrackerApplication
+import com.supermanzer.manzertracker.BrewBuddyApplication
 import com.supermanzer.manzertracker.data.CoffeeBag
 import com.supermanzer.manzertracker.data.CoffeeBrew
 import com.supermanzer.manzertracker.data.Roaster
+import com.supermanzer.manzertracker.ui.components.BagDetail
+import com.supermanzer.manzertracker.ui.components.BagItem
+import com.supermanzer.manzertracker.ui.components.BrewDetail
+import com.supermanzer.manzertracker.ui.components.BrewItem
+import com.supermanzer.manzertracker.ui.components.RoasterDetail
+import com.supermanzer.manzertracker.ui.components.RoasterItem
 import com.supermanzer.manzertracker.ui.viewmodels.CoffeeViewModel
 import com.supermanzer.manzertracker.ui.viewmodels.CoffeeViewModelFactory
 import com.supermanzer.manzertracker.ui.theme.CoffeeDarkGradient1
@@ -63,7 +68,7 @@ enum class CoffeeTab {
 @Composable
 fun CoffeeScreen() {
     val context = LocalContext.current
-    val database = (context.applicationContext as ManzerTrackerApplication).database
+    val database = (context.applicationContext as BrewBuddyApplication).database
     val viewModel: CoffeeViewModel = viewModel(
         factory = CoffeeViewModelFactory(database.coffeeDao())
     )
@@ -94,19 +99,18 @@ fun CoffeeScreen() {
         )
     }
 
-    ManzerTrackerTheme(isFitness = false) {
-        Scaffold(
-            containerColor = MaterialTheme.colorScheme.background,
-            floatingActionButton = {
-                FloatingActionButton(onClick = {
-                    activeForm = when (selectedTab) {
-                        CoffeeTab.BREWS -> CoffeeFormType.BREW
-                        CoffeeTab.BAGS -> CoffeeFormType.BAG
-                        CoffeeTab.ROASTERS -> CoffeeFormType.ROASTER
-                    }
-                }) {
-                    Icon(Icons.Default.Add, contentDescription = "Add Item")
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        floatingActionButton = {
+            FloatingActionButton(onClick = {
+                activeForm = when (selectedTab) {
+                    CoffeeTab.BREWS -> CoffeeFormType.BREW
+                    CoffeeTab.BAGS -> CoffeeFormType.BAG
+                    CoffeeTab.ROASTERS -> CoffeeFormType.ROASTER
                 }
+            }) {
+                Icon(Icons.Default.Add, contentDescription = "Add Item")
+            }
         }
     ) { padding ->
         Box(
@@ -215,6 +219,7 @@ fun CoffeeScreen() {
                     CoffeeFormType.BREW -> CoffeeBrewForm(
                         bags = bags,
                         roasters = roasters,
+                        previousBrews = brews,
                         onSave = { brew ->
                             viewModel.addBrew(brew)
                             activeForm = CoffeeFormType.NONE
@@ -335,6 +340,5 @@ fun CoffeeScreen() {
             )
         }
     }
-}
 }
 }

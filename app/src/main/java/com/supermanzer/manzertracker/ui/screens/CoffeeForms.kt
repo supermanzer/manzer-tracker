@@ -1,7 +1,9 @@
 package com.supermanzer.manzertracker.ui.screens
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,7 +15,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenuItem
@@ -36,9 +41,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.supermanzer.manzertracker.data.BrewMethod
 import com.supermanzer.manzertracker.data.CoffeeBag
 import com.supermanzer.manzertracker.data.CoffeeBrew
 import com.supermanzer.manzertracker.data.Roaster
+import com.supermanzer.manzertracker.ui.components.DropdownField
+import com.supermanzer.manzertracker.ui.components.WheelNumberPicker
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -46,22 +54,39 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
+private val WaterTempRangeF = 150..212
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CoffeeBrewForm(
     brew: CoffeeBrew? = null,
     bags: List<CoffeeBag>,
     roasters: List<Roaster>,
+    previousBrews: List<CoffeeBrew> = emptyList(),
     onSave: (CoffeeBrew) -> Unit
 ) {
     var selectedBag by remember { mutableStateOf(bags.find { it.id == brew?.bagId }) }
-    var method by remember { mutableStateOf(brew?.method ?: "V60") }
+    // A method saved before the dropdown existed is kept as-is unless it matches a known one.
+    var method by remember {
+        mutableStateOf(BrewMethod.fromLabel(brew?.method)?.label ?: brew?.method ?: BrewMethod.V60.label)
+    }
     var ratio by remember { mutableStateOf(brew?.ratio ?: "1:15") }
     var waterTemp by remember { mutableStateOf(brew?.waterTemp ?: 205) }
     var grindSize by remember { mutableStateOf(brew?.grindSize ?: 15) }
-    var rating by remember { mutableStateOf(brew?.rating?.toString() ?: "") }
+    var rating by remember { mutableStateOf(brew?.rating) }
     var notes by remember { mutableStateOf(brew?.notes ?: "") }
+    var nextBrewIdeas by remember { mutableStateOf(brew?.nextBrewIdeas ?: "") }
     var expanded by remember { mutableStateOf(false) }
+    var showTempPicker by remember { mutableStateOf(false) }
+
+    // Only for a new brew: the latest earlier brew of the selected bag, if it left any ideas.
+    val lastBrewWithIdeas = remember(brew, selectedBag, previousBrews) {
+        if (brew != null) null
+        else previousBrews
+            .filter { it.bagId == selectedBag?.id }
+            .maxByOrNull { it.brewDate }
+            ?.takeIf { !it.nextBrewIdeas.isNullOrBlank() }
+    }
 
     Column(
         modifier = Modifier
@@ -119,12 +144,35 @@ fun CoffeeBrewForm(
             }
         }
 
+        lastBrewWithIdeas?.let { last ->
+            Spacer(modifier = Modifier.height(8.dp))
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                )
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text(
+                        text = "Ideas from last brew (${
+                            DateTimeFormatter.ofPattern("MMM dd, yyyy", Locale.getDefault())
+                                .withZone(ZoneId.systemDefault()).format(last.brewDate)
+                        })",
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(text = last.nextBrewIdeas.orEmpty(), style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        }
+
         Spacer(modifier = Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(
-                value = method,
-                onValueChange = { method = it },
-                label = { Text("Brew Method") },
+            DropdownField(
+                label = "Brew Method",
+                options = BrewMethod.entries.map { it.label },
+                selected = method,
+                onSelected = { method = it },
                 modifier = Modifier.weight(1f)
             )
             OutlinedTextField(
@@ -137,34 +185,82 @@ fun CoffeeBrewForm(
         }
         Spacer(modifier = Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-
-            OutlinedTextField(
-                value = waterTemp.toString(),
-                onValueChange = { waterTemp = it.toIntOrNull() ?: 0 },
-                label = { Text("Water Temp (F)") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            Box(modifier = Modifier.weight(1f)) {
+                OutlinedTextField(
+                    value = "$waterTemp °F",
+                    onValueChange = {},
+                    readOnly = true,
+                    singleLine = true,
+                    label = { Text("Water Temp") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                // A read-only text field swallows taps, so a transparent layer on top catches them.
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { showTempPicker = true }
+                )
+            }
+            DropdownField(
+                label = "Grind Size",
+                options = (1..30).toList(),
+                selected = grindSize,
+                onSelected = { grindSize = it },
                 modifier = Modifier.weight(1f)
             )
-            OutlinedTextField(
-                value = grindSize.toString(),
-                onValueChange = { grindSize = it.toIntOrNull() ?: 0 },
-                label = { Text("Grind Size") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.weight(1f)
-            )
-            OutlinedTextField(
-                value = rating,
-                onValueChange = { rating = it },
-                label = { Text("Rating (1-5)") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.weight(1f)
+            DropdownField(
+                label = "Rating",
+                options = listOf(null) + (1..5),
+                selected = rating,
+                onSelected = { rating = it },
+                modifier = Modifier.weight(1f),
+                optionLabel = { it?.toString() ?: "None" }
             )
         }
+        if (showTempPicker) {
+            var pendingTemp by remember { mutableStateOf(waterTemp.coerceIn(WaterTempRangeF)) }
+            AlertDialog(
+                onDismissRequest = { showTempPicker = false },
+                title = { Text("Water Temp (°F)") },
+                text = {
+                    WheelNumberPicker(
+                        initialValue = pendingTemp,
+                        range = WaterTempRangeF,
+                        onValueChange = { pendingTemp = it },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        waterTemp = pendingTemp
+                        showTempPicker = false
+                    }) {
+                        Text("OK")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showTempPicker = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedTextField(
             value = notes,
             onValueChange = { notes = it },
             label = { Text("Notes") },
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedTextField(
+            value = nextBrewIdeas,
+            onValueChange = { nextBrewIdeas = it },
+            label = { Text("Ideas for Next Brew") },
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(modifier = Modifier.height(16.dp))
@@ -178,16 +274,18 @@ fun CoffeeBrewForm(
                             ratio = ratio,
                             waterTemp = waterTemp,
                             grindSize = grindSize,
-                            rating = rating.toIntOrNull(),
-                            notes = notes
+                            rating = rating,
+                            notes = notes,
+                            nextBrewIdeas = nextBrewIdeas.takeIf { it.isNotBlank() }
                         ) ?: CoffeeBrew(
                             bagId = bag.id,
                             method = method,
                             ratio = ratio,
                             waterTemp = waterTemp,
                             grindSize = grindSize,
-                            rating = rating.toIntOrNull(),
+                            rating = rating,
                             notes = notes,
+                            nextBrewIdeas = nextBrewIdeas.takeIf { it.isNotBlank() },
                             brewDate = Instant.now()
                         )
                     )

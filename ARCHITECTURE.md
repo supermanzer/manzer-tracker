@@ -1,6 +1,6 @@
-# ManzerTracker — Developer Architecture Guide
+# BrewBuddy — Developer Architecture Guide
 
-A personal Android application for tracking coffee brews and fitness workouts.
+A personal Android application for tracking coffee: roasters, bags, and brews.
 Built with Kotlin, Jetpack Compose, Room, and MVVM architecture.
 
 ---
@@ -13,7 +13,7 @@ Built with Kotlin, Jetpack Compose, Room, and MVVM architecture.
 4. [Architecture Pattern (MVVM)](#4-architecture-pattern-mvvm)
 5. [Data Layer — Room Database](#5-data-layer--room-database)
 6. [ViewModel Layer](#6-viewmodel-layer)
-7. [UI Layer — Navigation](#7-ui-layer--navigation)
+7. [UI Layer — App Entry Point](#7-ui-layer--app-entry-point)
 8. [UI Layer — Theming](#8-ui-layer--theming)
 9. [UI Layer — Screens and Compose Patterns](#9-ui-layer--screens-and-compose-patterns)
 10. [Dependency Injection (Manual)](#10-dependency-injection-manual)
@@ -24,14 +24,15 @@ Built with Kotlin, Jetpack Compose, Room, and MVVM architecture.
 
 ## 1. Project Overview
 
-ManzerTracker is a single-activity Android app with two top-level features:
+BrewBuddy is a single-activity, single-screen Android app that tracks a three-level coffee hierarchy:
 
-| Feature | What it tracks |
-|---|---|
-| **Coffee** | Roasters → Coffee bags → Individual brews with brew parameters and ratings |
-| **Fitness** | Exercises → Workout plans → Workout sessions with per-exercise sets, weights, reps, and RPE |
+```
+Roasters → Coffee bags → Individual brews with brew parameters and ratings
+```
 
-The user navigates between features using a bottom navigation bar. Within each feature, content is organized into tabs (e.g. Brews / Bags / Roasters). Adding and editing records is done via modal bottom sheets that slide up over the list.
+Content is organized into tabs (Brews / Bags / Roasters). Adding and editing records is done via modal bottom sheets that slide up over the list.
+
+> **History:** the app began life as "ManzerTracker" and also tracked fitness workouts. That feature was removed in schema version 5. The Kotlin package (`com.supermanzer.manzertracker`), `applicationId`, and database file name (`manzer_tracker_db`) keep the old name on purpose — see [5.4](#54-appdatabase-and-singleton-pattern).
 
 ---
 
@@ -43,7 +44,6 @@ All dependency versions are centralized in `gradle/libs.versions.toml` (the Grad
 |---|---|
 | **Jetpack Compose + Material3** | Declarative UI toolkit. Replaces XML layouts entirely. |
 | **Compose BOM** | Bill of Materials — ensures all Compose libraries use compatible versions without specifying each individually. |
-| **Navigation Compose** | Type-safe in-app routing between screens within Compose. |
 | **Room** | SQLite ORM. Provides compile-time SQL validation, DAO interfaces, and reactive `Flow`-based queries. |
 | **KSP (Kotlin Symbol Processing)** | Code generator used by Room to create DAO implementation classes at build time. Replaces the older KAPT. |
 | **Lifecycle ViewModel Compose** | Provides the `viewModel()` composable function for retrieving ViewModels scoped to a composition. |
@@ -58,35 +58,30 @@ All dependency versions are centralized in `gradle/libs.versions.toml` (the Grad
 
 ```
 app/src/main/java/com/supermanzer/manzertracker/
-├── ManzerTrackerApplication.kt     # Application subclass — holds the DB singleton
-├── MainActivity.kt                 # Single activity — sets up nav host and bottom bar
+├── BrewBuddyApplication.kt         # Application subclass — holds the DB singleton
+├── MainActivity.kt                 # Single activity — applies the theme and hosts CoffeeScreen
 │
 ├── data/                           # Room data layer
-│   ├── AppDatabase.kt              # @Database declaration, singleton factory
-│   ├── Converters.kt               # TypeConverter: Date <-> Long
+│   ├── AppDatabase.kt              # @Database declaration, migrations, singleton factory
+│   ├── Converters.kt               # TypeConverters: Instant / LocalDate <-> Long
 │   ├── CoffeeEntities.kt           # @Entity: Roaster, CoffeeBag, CoffeeBrew
-│   ├── CoffeeDao.kt                # @Dao: CRUD + Flow queries for coffee
-│   ├── FitnessEntities.kt          # @Entity: Exercise, WorkoutPlan, WorkoutPlanExercise, WorkoutSession, WorkoutSet
-│   └── FitnessDao.kt               # @Dao: CRUD + @Transaction methods for fitness
+│   └── CoffeeDao.kt                # @Dao: CRUD + Flow queries for coffee
 │
 └── ui/
-    ├── navigation/
-    │   └── Screen.kt               # Sealed class defining routes and nav bar items
     ├── theme/
-    │   ├── Color.kt                # All color constants for both themes
+    │   ├── Color.kt                # Color constants for the coffee theme
     │   ├── Type.kt                 # Typography scale
-    │   └── Theme.kt                # ManzerTrackerTheme composable — 4 color schemes
+    │   └── Theme.kt                # BrewBuddyTheme composable — light and dark color schemes
     ├── viewmodels/
-    │   ├── CoffeeViewModel.kt      # State + actions for coffee data
-    │   └── FitnessViewModel.kt     # State + actions for fitness data
+    │   └── CoffeeViewModel.kt      # State + actions for coffee data
+    ├── components/                 # One composable per file
+    │   ├── BrewItem.kt / BagItem.kt / RoasterItem.kt        # List cards
+    │   ├── BrewDetail.kt / BagDetail.kt / RoasterDetail.kt  # Bottom sheet detail views
+    │   ├── DetailSection.kt / DetailRow.kt                  # Building blocks for detail views
+    │   └── DropdownField.kt / WheelNumberPicker.kt          # Reusable form inputs
     └── screens/
-        ├── CommonComponents.kt     # Shared composables: DetailSection, DetailRow
-        ├── CoffeeScreen.kt         # Coffee tab host, FAB, bottom sheet orchestration
-        ├── CoffeeComponents.kt     # BrewItem, BagItem, RoasterItem, *Detail composables
-        ├── CoffeeForms.kt          # CoffeeBrewForm, RoasterForm, CoffeeBagForm
-        ├── FitnessScreen.kt        # Fitness tab host, FAB, bottom sheet orchestration
-        ├── FitnessComponents.kt    # WorkoutPlanItem, WorkoutSessionItem, *Detail composables
-        └── FitnessForms.kt         # WorkoutSessionForm, ExerciseForm, WorkoutPlanForm
+        ├── CoffeeScreen.kt         # Tab host, FAB, bottom sheet orchestration
+        └── CoffeeForms.kt          # CoffeeBrewForm, RoasterForm, CoffeeBagForm
 ```
 
 ---
@@ -103,12 +98,12 @@ The app follows **MVVM (Model-View-ViewModel)** with a clear separation of conce
                 │ observes / calls
 ┌───────────────▼─────────────────┐
 │         ViewModel               │  Holds UI state as StateFlow, launches coroutines
-│  CoffeeViewModel / Fitness...   │
+│  CoffeeViewModel                │
 └───────────────┬─────────────────┘
                 │ suspends / collects Flow
 ┌───────────────▼─────────────────┐
 │       Data (Room DAOs)          │  SQL queries, returns Flow<T> or suspend fun
-│  CoffeeDao / FitnessDao         │
+│  CoffeeDao                      │
 └─────────────────────────────────┘
 ```
 
@@ -122,7 +117,7 @@ The app follows **MVVM (Model-View-ViewModel)** with a clear separation of conce
 
 Entities are plain Kotlin `data class` objects annotated with `@Entity`. Room maps each class to a database table.
 
-**Coffee domain (3 tables, hierarchical):**
+The schema has three tables in a strict hierarchy:
 
 ```
 Roaster ──(1:many)──> CoffeeBag ──(1:many)──> CoffeeBrew
@@ -159,48 +154,24 @@ data class Roaster(
 
 > **Why the `Index`?** SQLite requires an index on foreign key columns for efficient lookups. Without it, every query joining on `roasterId` does a full table scan. Room will emit a warning at build time if you omit it.
 
-**Fitness domain (5 tables):**
-
-```
-Exercise  ──(many:many via WorkoutPlanExercise)──  WorkoutPlan
-                                                        │
-                                                   WorkoutSession
-                                                        │
-                                               WorkoutSet (per exercise)
-```
-
-`WorkoutPlanExercise` is a join/junction table with a **composite primary key**:
-
-```kotlin
-@Entity(
-    tableName = "workout_plan_exercises",
-    primaryKeys = ["planId", "exerciseId", "orderIndex"],  // composite PK
-    ...
-)
-data class WorkoutPlanExercise(
-    val planId: Long,
-    val exerciseId: Long,
-    val orderIndex: Int
-)
-```
-
-`WorkoutSession.planId` uses `onDelete = ForeignKey.SET_NULL` — if a plan is deleted, existing sessions that used that plan retain their data but lose the plan association (the `planId` becomes `null`).
-
 ### 5.2 TypeConverters
 
-Room can only store primitive types (Int, Long, String, etc.) natively. `java.util.Date` is an object, so it must be converted:
+Room can only store primitive types (Int, Long, String, etc.) natively. `java.time.Instant` and `LocalDate` are objects, so they must be converted:
 
 ```kotlin
 class Converters {
     @TypeConverter
-    fun fromTimestamp(value: Long?): Date? = value?.let { Date(it) }
+    fun fromInstant(instant: Instant?): Long? = instant?.toEpochMilli()
 
     @TypeConverter
-    fun dateToTimestamp(date: Date?): Long? = date?.time
+    fun toInstant(value: Long?): Instant? = value?.let { Instant.ofEpochMilli(it) }
+
+    // LocalDate is stored as UTC-midnight epoch millis
+    ...
 }
 ```
 
-`Date.time` is milliseconds since Unix epoch — a `Long`. This converter is registered on the database:
+Both types are stored as epoch milliseconds — a `Long`. The converters are registered on the database:
 
 ```kotlin
 @TypeConverters(Converters::class)
@@ -230,34 +201,12 @@ suspend fun insertRoaster(roaster: Roaster): Long   // suspend, one-shot, return
 fun getAllRoasters(): Flow<List<Roaster>>            // NOT suspend — ongoing stream
 ```
 
-**`@Transaction` methods in `FitnessDao`:**
-
-For complex multi-step writes that must be atomic (either all succeed or all fail), the DAO provides `@Transaction` functions:
-
-```kotlin
-@Transaction
-suspend fun updateWorkoutPlanWithExercises(plan: WorkoutPlan, exercises: List<Exercise>) {
-    updateWorkoutPlan(plan)
-    val currentEntries = getPlanExercisesSync(plan.id)
-    val newEntries = exercises.mapIndexed { index, exercise ->
-        WorkoutPlanExercise(plan.id, exercise.id, index)
-    }
-    val toDelete = currentEntries.filterNot { ce -> newEntries.any { ne -> ne.exerciseId == ce.exerciseId && ne.orderIndex == ce.orderIndex } }
-    val toInsert = newEntries.filterNot { ne -> currentEntries.any { ce -> ce.exerciseId == ne.exerciseId && ce.orderIndex == ne.orderIndex } }
-    if (toDelete.isNotEmpty()) deletePlanExercises(toDelete)
-    if (toInsert.isNotEmpty()) insertPlanExercises(toInsert)
-}
-```
-
-`@Transaction` wraps all operations in a single SQLite transaction. If any step throws, the whole transaction is rolled back. The "surgical update" approach (diff old vs new, delete/insert only what changed) avoids unnecessarily deleting and re-inserting all rows.
-
 ### 5.4 AppDatabase and Singleton Pattern
 
 ```kotlin
-@Database(entities = [...], version = 3, exportSchema = false)
+@Database(entities = [Roaster::class, CoffeeBag::class, CoffeeBrew::class], version = 6, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun coffeeDao(): CoffeeDao
-    abstract fun fitnessDao(): FitnessDao
 
     companion object {
         @Volatile
@@ -266,7 +215,7 @@ abstract class AppDatabase : RoomDatabase() {
         fun getDatabase(context: Context): AppDatabase {
             return Instance ?: synchronized(this) {
                 Room.databaseBuilder(context, AppDatabase::class.java, "manzer_tracker_db")
-                    .fallbackToDestructiveMigration()
+                    .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                     .build()
                     .also { Instance = it }
             }
@@ -277,8 +226,14 @@ abstract class AppDatabase : RoomDatabase() {
 
 - `@Volatile` ensures the `Instance` variable is always read from main memory, not a thread-local CPU cache. This makes the null-check safe across threads.
 - `synchronized(this)` prevents two threads from simultaneously creating two database instances (double-checked locking pattern).
-- `fallbackToDestructiveMigration()` means if the schema version increases without a migration defined, Room drops and recreates the database. Acceptable for personal use; **not** acceptable for production apps with user data that must be preserved.
+- `addMigrations(...)` registers explicit `Migration` objects. There is no `fallbackToDestructiveMigration()`, so a version bump without a matching migration crashes at startup rather than silently wiping data.
 - `exportSchema = false` suppresses Room's schema export file generation. Best practice is to set this to `true` and commit the schema files, which serve as a migration audit trail.
+
+**Why the version went 4 → 5 when fitness was removed.** Room hashes the entity list into an *identity hash* stored in the database file. Removing entities changes that hash, so opening an existing version-4 file with the new code would fail with "Room cannot verify the data integrity". `MIGRATION_4_5` drops the five fitness tables (children first, so no foreign key is left dangling) and leaves the coffee tables untouched.
+
+**Version 5 → 6** added `CoffeeBrew.nextBrewIdeas`, a nullable note on what to change next time. Adding a nullable column is the gentlest kind of migration: one `ALTER TABLE ... ADD COLUMN`, and existing rows simply read as `NULL`.
+
+**Names that deliberately still say "manzertracker".** Android identifies an installed app by its `applicationId`, and Room identifies the database by its file name. Changing either would make the rebranded build look like a brand-new app with an empty database. The user-facing name comes from `app_name` in `strings.xml`, which is independent of both.
 
 ---
 
@@ -345,68 +300,21 @@ The `viewModel()` composable from `lifecycle-viewmodel-compose` handles ViewMode
 
 ---
 
-## 7. UI Layer — Navigation
+## 7. UI Layer — App Entry Point
 
-### 7.1 Screen Sealed Class
-
-```kotlin
-sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
-    object Coffee : Screen("coffee", "Coffee", Icons.Default.Coffee)
-    object Fitness : Screen("fitness", "Fitness", Icons.Default.FitnessCenter)
-}
-
-val items = listOf(Screen.Coffee, Screen.Fitness)
-```
-
-A `sealed class` restricts which subclasses can exist. `object` singletons are used because routes are stateless — there is exactly one Coffee screen, not parameterized instances. This pattern makes it easy to add new top-level destinations: add an `object` to `Screen` and add it to `items`.
-
-### 7.2 NavHost Setup in MainActivity
+With a single feature there is nothing to navigate between, so `MainActivity` hosts the one screen directly:
 
 ```kotlin
-val navController = rememberNavController()
-
-Scaffold(
-    bottomBar = {
-        NavigationBar {
-            items.forEach { screen ->
-                NavigationBarItem(
-                    selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
-                    onClick = {
-                        navController.navigate(screen.route) {
-                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
-                    ...
-                )
-            }
-        }
-    }
-) { innerPadding ->
-    NavHost(navController, startDestination = Screen.Coffee.route) {
-        composable(Screen.Coffee.route) { CoffeeScreen() }
-        composable(Screen.Fitness.route) { FitnessScreen() }
+setContent {
+    BrewBuddyTheme {
+        CoffeeScreen()
     }
 }
 ```
 
-The `navigate` block options deserve explanation:
-- `popUpTo(startDestination) { saveState = true }` — when tapping a bottom nav item, pop back to the start of the graph so you don't accumulate a stack of screens. `saveState = true` preserves the back-stack state for that destination.
-- `launchSingleTop = true` — if you're already on Coffee and tap Coffee again, don't create a second Coffee screen on the stack.
-- `restoreState = true` — if you navigated away from Fitness and come back, restore its previous state (e.g. which tab was open).
+There is no `NavHost`, no bottom bar, and no Navigation Compose dependency. A bottom navigation bar with one destination is a Material anti-pattern — the guidelines call for three to five. In-screen movement between Brews, Bags, and Roasters is handled by the `TabRow` inside `CoffeeScreen` (see section 9).
 
-### 7.3 Dynamic Theme Switching
-
-A subtle but elegant detail: the theme changes based on which screen is active.
-
-```kotlin
-val isFitness = currentDestination?.hierarchy?.any { it.route == Screen.Fitness.route } == true
-
-ManzerTrackerTheme(isFitness = isFitness) { ... }
-```
-
-This checks the navigation back stack hierarchy (not just the current route) so the theme is correct even during transitions.
+If a second top-level destination is ever added, reintroduce `androidx.navigation:navigation-compose`, a sealed `Screen` class describing the routes, and a `NavHost` in `MainActivity`.
 
 ---
 
@@ -414,36 +322,32 @@ This checks the navigation back stack hierarchy (not just the current route) so 
 
 ### 8.1 Material3 Color Scheme
 
-The app defines four `ColorScheme` objects:
+The app defines two `ColorScheme` objects:
 
 | Scheme | When applied |
 |---|---|
-| `CoffeeLightColorScheme` | Coffee screen, system light mode |
-| `CoffeeDarkColorScheme` | Coffee screen, system dark mode |
-| `FitnessLightColorScheme` | Fitness screen, system light mode |
-| `FitnessDarkColorScheme` | Fitness screen, system dark mode |
+| `CoffeeLightColorScheme` | System light mode |
+| `CoffeeDarkColorScheme` | System dark mode |
 
-`ManzerTrackerTheme` selects the correct scheme via two booleans:
+`BrewBuddyTheme` selects between them:
 
 ```kotlin
 @Composable
-fun ManzerTrackerTheme(
+fun BrewBuddyTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    isFitness: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = if (isFitness) {
-        if (darkTheme) FitnessDarkColorScheme else FitnessLightColorScheme
-    } else {
-        if (darkTheme) CoffeeDarkColorScheme else CoffeeLightColorScheme
-    }
-    MaterialTheme(colorScheme = colorScheme, typography = Typography, content = content)
+    MaterialTheme(
+        colorScheme = if (darkTheme) CoffeeDarkColorScheme else CoffeeLightColorScheme,
+        typography = Typography,
+        content = content
+    )
 }
 ```
 
 ### 8.2 Theme vs. Gradient Backgrounds
 
-The `MaterialTheme.colorScheme.background` color provides the base. But both screens **also** apply a `Brush.linearGradient` directly to a `Box` modifier inside the screen:
+The `MaterialTheme.colorScheme.background` color provides the base. But `CoffeeScreen` **also** applies a `Brush.linearGradient` directly to a `Box` modifier:
 
 ```kotlin
 val coffeeGradient = Brush.linearGradient(colors = listOf(CoffeeLightGradient1, CoffeeLightGradient2))
@@ -453,21 +357,18 @@ Box(modifier = Modifier.fillMaxSize().background(coffeeGradient)) { ... }
 
 This is separate from the theme — the theme handles component colors (buttons, cards, text), while the gradient handles the raw screen backdrop. Cards use `alpha = 0.9f` on their surface color to let the gradient show through slightly.
 
-Note that `ManzerTrackerTheme` is also called a second time inside each screen with `isFitness = true/false`. This is redundant given that `MainActivity` already wraps everything in the theme, but it functions as a safety net ensuring the correct theme is applied regardless of entry point.
-
 ---
 
 ## 9. UI Layer — Screens and Compose Patterns
 
 ### 9.1 Composable State in Screens
 
-Both `CoffeeScreen` and `FitnessScreen` follow the same orchestration pattern. Understanding the state variables is key:
+`CoffeeScreen` orchestrates everything on screen. Understanding its state variables is key:
 
 ```kotlin
 var activeForm by remember { mutableStateOf(CoffeeFormType.NONE) }
 var selectedBrew by remember { mutableStateOf<CoffeeBrew?>(null) }
 var selectedTab by remember { mutableStateOf(CoffeeTab.BREWS) }
-var showFabMenu by remember { mutableStateOf(false) }
 var showDeleteDialog by remember { mutableStateOf<Any?>(null) }
 ```
 
@@ -535,55 +436,39 @@ items(brews) { brew ->
 }
 ```
 
+The new-brew form uses the same approach for "ideas from last brew": `CoffeeScreen` passes the full `brews` list in, and the form picks the most recent brew of the selected bag inside `remember(brew, selectedBag, previousBrews)`. The keys make the lookup re-run when the bag selection changes, and only then. If that brew recorded ideas, they are shown in a card under the bag dropdown.
+
 This works fine for small datasets. The three `StateFlow`s are independent, so a roaster update will cause `roasters` to emit a new list, which causes recomposition of the brew list items even though brews didn't change.
 
-### 9.6 LaunchedEffect
-
-`LaunchedEffect` runs a suspending block as a side effect when a composable enters composition or when its key changes:
-
-```kotlin
-LaunchedEffect(selectedPlan, session, planExercises) {
-    if (session != null && sets.isEmpty()) {
-        viewModel.getSetsForSession(session.id).collect { fetchedSets ->
-            if (sets.isEmpty()) { sets = fetchedSets }
-        }
-    }
-}
-```
-
-The keys `(selectedPlan, session, planExercises)` mean: re-run this block whenever any of those values change. This is used in `WorkoutSessionForm` to pre-populate sets when editing an existing session or when a plan is selected.
-
-> **Caution:** In `WorkoutPlanForm`, the same `LaunchedEffect(initialExercises)` block is written three times. Only one copy is needed — duplicates are a bug left by the AI assistant.
-
-### 9.7 LazyColumn
+### 9.6 LazyColumn
 
 ```kotlin
 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-    items(brews) { brew -> BrewItem(...) }
+    items(brews, key = { it.id }) { brew -> BrewItem(...) }
 }
 ```
 
-`LazyColumn` is the Compose equivalent of `RecyclerView`. It only renders items that are currently visible, making it efficient for long lists. `items(list)` is a DSL function that maps each list element to a composable item. The `key` parameter (not used here) can be added to improve recomposition efficiency: `items(brews, key = { it.id }) { ... }`.
+`LazyColumn` is the Compose equivalent of `RecyclerView`. It only renders items that are currently visible, making it efficient for long lists. `items(list)` is a DSL function that maps each list element to a composable item. The `key` parameter gives each item a stable identity, so Compose can tell which items moved or changed and recompose only those.
 
-### 9.8 Forms: Controlled Inputs
+### 9.7 Forms: Controlled Inputs
 
 Forms use the "controlled input" pattern — each field's value is a `remember`'d state variable, and `onValueChange` updates it:
 
 ```kotlin
-var method by remember { mutableStateOf(brew?.method ?: "V60") }
+var ratio by remember { mutableStateOf(brew?.ratio ?: "1:15") }
 
 OutlinedTextField(
-    value = method,
-    onValueChange = { method = it },
-    label = { Text("Brew Method") }
+    value = ratio,
+    onValueChange = { ratio = it },
+    label = { Text("Ratio (1:X)") }
 )
 ```
 
 The field's displayed value is always derived from state, never from the TextField's internal state. This makes it easy to pre-populate fields for editing (pass in the existing entity) and to validate or transform input before saving.
 
-### 9.9 ExposedDropdownMenuBox
+### 9.8 ExposedDropdownMenuBox
 
-The "Select Coffee Bag" and "Select Workout Plan" dropdowns use Material3's exposed dropdown:
+The "Select Coffee Bag" dropdown uses Material3's exposed dropdown:
 
 ```kotlin
 ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
@@ -602,9 +487,13 @@ ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !exp
 
 `menuAnchor(MenuAnchorType.PrimaryNotEditable)` is required — it tells the dropdown menu where to anchor itself (to the TextField). `readOnly = true` prevents the system keyboard from appearing; selection only happens via the dropdown.
 
-### 9.10 Reusable Components
+### 9.9 Reusable Components
 
-`CommonComponents.kt` provides two low-level composables used throughout detail views:
+The `ui/components/` package provides `DropdownField<T>`, a generic wrapper around the exposed dropdown above for fields with a fixed set of choices. The brew form uses it for Brew Method (the `BrewMethod` enum's labels), Grind Size (1–30), and Rating (1–5, or None). It is *stateless* about the selection — the caller owns `selected` and receives `onSelected` — and only keeps its own open/closed flag. This is **state hoisting**.
+
+`WheelNumberPicker` is a scrolling number wheel, which Compose does not ship. It is a `LazyColumn` with `rememberSnapFlingBehavior`, so a fling always settles with one number centred; `derivedStateOf` works out which item is nearest the centre, and `snapshotFlow` reports it to the caller. The brew form shows it in a dialog for Water Temp (150–212 °F).
+
+It also provides two low-level composables used throughout detail views:
 
 - `DetailSection(title, onEdit?, content)` — a labeled group with an optional edit icon
 - `DetailRow(label, value, onEdit?)` — a single key/value pair row
@@ -617,20 +506,20 @@ These follow the **slot API pattern**: the `content` lambda accepts a `@Composab
 
 The app uses manual dependency injection rather than a framework like Hilt. Here is the chain:
 
-1. `ManzerTrackerApplication` (created by Android at app start) creates the `AppDatabase` lazily:
+1. `BrewBuddyApplication` (created by Android at app start) creates the `AppDatabase` lazily:
    ```kotlin
    val database: AppDatabase by lazy { AppDatabase.getDatabase(this) }
    ```
 2. `CoffeeScreen` retrieves the application and its database:
    ```kotlin
-   val database = (context.applicationContext as ManzerTrackerApplication).database
+   val database = (context.applicationContext as BrewBuddyApplication).database
    ```
 3. The ViewModel is instantiated with the DAO:
    ```kotlin
    val viewModel: CoffeeViewModel = viewModel(factory = CoffeeViewModelFactory(database.coffeeDao()))
    ```
 
-This works cleanly for a simple two-screen app. The downside is that the Screen composable is tightly coupled to `ManzerTrackerApplication` — it knows how to resolve its own dependencies rather than receiving them from outside.
+This works cleanly for a simple single-screen app. The downside is that the Screen composable is tightly coupled to `BrewBuddyApplication` — it knows how to resolve its own dependencies rather than receiving them from outside.
 
 ---
 
@@ -674,46 +563,27 @@ The following items range from quick wins to more significant refactors. They ar
 
 ### 12.1 High Priority
 
-**A. Use `fallbackToDestructiveMigration` with caution — provide real migrations**
+**A. Keep providing real migrations**
 
-`fallbackToDestructiveMigration()` wipes the database whenever `version` increments. The database is currently at version 3, meaning it has already been wiped twice during development. For any app where data matters, define explicit `Migration` objects:
+The database uses explicit `Migration` objects and no destructive fallback. Keep it that way: every `version` bump needs a matching migration, even a no-op one, or the app will crash on launch for existing installs.
 
 ```kotlin
-val MIGRATION_2_3 = object : Migration(2, 3) {
+private val MIGRATION_4_5 = object : Migration(4, 5) {
     override fun migrate(db: SupportSQLiteDatabase) {
-        db.execSQL("ALTER TABLE workout_sets ADD COLUMN rpe REAL")
+        db.execSQL("DROP TABLE IF EXISTS workout_sets")
+        ...
     }
 }
 Room.databaseBuilder(...)
-    .addMigrations(MIGRATION_2_3)
+    .addMigrations(MIGRATION_3_4, MIGRATION_4_5)
     .build()
 ```
-
-**B. Replace `java.util.Date` with `kotlinx.datetime` or `java.time`**
-
-`java.util.Date` is a legacy class with confusing mutability and time-zone behavior. `minSdk = 26` means the entire `java.time` API is available without desugaring. Alternatively, `kotlinx-datetime` is idiomatic Kotlin. Either option results in cleaner, less error-prone date handling.
-
-**C. Fix the triple `LaunchedEffect` in `WorkoutPlanForm`**
-
-`WorkoutPlanForm.kt:325–343` contains three nearly identical `LaunchedEffect(initialExercises)` blocks. In Compose, only one `LaunchedEffect` with a given key is active at a time — having three with the same key means only the first one runs, and the others silently do nothing. Two of the three should be deleted.
-
-**D. Add `key` to all `LazyColumn` `items` calls**
-
-```kotlin
-// Before
-items(brews) { brew -> BrewItem(...) }
-
-// After
-items(brews, key = { it.id }) { brew -> BrewItem(...) }
-```
-
-Without a stable key, Compose cannot tell which items moved or changed when the list updates. It recomposes all visible items on any change. Providing the entity ID as a key allows Compose to recompose only the items that actually changed.
 
 ---
 
 ### 12.2 Medium Priority
 
-**E. Extract a Repository layer**
+**B. Extract a Repository layer**
 
 ViewModels currently call DAOs directly. Introducing a repository class between them yields several benefits: the ViewModel becomes testable without a real database, the data-access logic can be shared between ViewModels, and caching or offline-first logic can be added in one place.
 
@@ -725,7 +595,7 @@ class CoffeeRepository(private val coffeeDao: CoffeeDao) {
 }
 ```
 
-**F. Replace manual `ViewModelFactory` with Hilt**
+**C. Replace manual `ViewModelFactory` with Hilt**
 
 The manual factory pattern requires boilerplate for every ViewModel. Hilt (Google's recommended DI framework for Android) generates the factory automatically and handles the `Application` / `Activity` / `Fragment` scope graph:
 
@@ -738,7 +608,7 @@ class CoffeeViewModel @Inject constructor(private val coffeeRepo: CoffeeReposito
 val viewModel: CoffeeViewModel = hiltViewModel()
 ```
 
-**G. Move UI state (form state, selected item) into ViewModel**
+**D. Move UI state (form state, selected item) into ViewModel**
 
 Currently, the "which item is selected" and "which form is active" state lives in the Screen composable (`remember { mutableStateOf(...) }`). This state is lost on screen rotation. Moving it into the ViewModel (which survives rotation) provides a better user experience:
 
@@ -753,55 +623,27 @@ fun showBrewDetail(brew: CoffeeBrew) {
 }
 ```
 
-**H. `WorkoutSessionForm` — fix the `LaunchedEffect` collect pattern**
-
-The current code collects a Flow inside `LaunchedEffect` using `.collect { ... }`:
-
-```kotlin
-LaunchedEffect(selectedPlan, session, planExercises) {
-    if (session != null && sets.isEmpty()) {
-        viewModel.getSetsForSession(session.id).collect { fetchedSets ->
-            if (sets.isEmpty()) { sets = fetchedSets }
-        }
-    }
-}
-```
-
-This is fragile: `collect` is a suspend function that runs indefinitely, and the guard `if (sets.isEmpty())` only works for the first emission. The idiomatic approach is to use `collectAsState()` at the top level and react to the collected value, or use `.first()` to get exactly one value:
-
-```kotlin
-LaunchedEffect(session?.id) {
-    if (session != null) {
-        sets = viewModel.getSetsForSession(session.id).first()
-    }
-}
-```
-
 ---
 
 ### 12.3 Lower Priority / Polish
 
-**I. Enable `isMinifyEnabled = true` for release builds and configure ProGuard**
+**E. Enable `isMinifyEnabled = true` for release builds and configure ProGuard**
 
 Code shrinking and obfuscation are disabled. For any app distributed outside personal use, enable them and test the release build.
 
-**J. Export Room schema**
+**F. Export Room schema**
 
 Change `exportSchema = false` to `exportSchema = true` and commit the generated JSON files to version control. These files act as a diff-able audit trail of every schema change and are required for Room's built-in migration testing utilities.
 
-**K. Add `contentDescription` strings to resource file**
+**G. Add `contentDescription` strings to resource file**
 
 All `Icon` composables use hardcoded English strings for `contentDescription`. These should be moved to `strings.xml` for proper localization support and to make them accessible to screen readers.
 
-**L. `BagDetail` is missing a brews count / brew history link**
+**H. `BagDetail` is missing a brews count / brew history link**
 
 The `BAG_DETAIL` bottom sheet shows bag metadata but provides no way to see which brews used that bag. A natural improvement would be a "Brews using this bag" section showing filtered brew items.
 
-**M. Workout session requires a plan**
-
-In `WorkoutSessionForm`, the Save button is `enabled = selectedPlan != null`. This prevents logging ad-hoc workouts without creating a plan first. The UI label "Select Workout Plan" implies it might be optional. Either allow plan-less sessions or update the UX to make the requirement clearer upfront.
-
-**N. No tests**
+**I. No tests**
 
 The project contains only the generated placeholder tests. Consider adding:
 - Room DAO tests using `Room.inMemoryDatabaseBuilder` (run on device/emulator)
@@ -810,4 +652,4 @@ The project contains only the generated placeholder tests. Consider adding:
 
 ---
 
-*This document reflects the codebase as of April 2026. Update it when the schema version increments, new screens are added, or DI is refactored.*
+*This document reflects the codebase as of October 2026. Update it when the schema version increments, new screens are added, or DI is refactored.*

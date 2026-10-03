@@ -12,21 +12,15 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     entities = [
         Roaster::class,
         CoffeeBag::class,
-        CoffeeBrew::class,
-        Exercise::class,
-        WorkoutPlan::class,
-        WorkoutPlanExercise::class,
-        WorkoutSession::class,
-        WorkoutSet::class
+        CoffeeBrew::class
     ],
-    version = 4,
+    version = 6,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun coffeeDao(): CoffeeDao
-    abstract fun fitnessDao(): FitnessDao
 
     companion object {
         @Volatile
@@ -38,10 +32,30 @@ abstract class AppDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) = Unit
         }
 
+        // Version 4 → 5: fitness tracking removed (app rebranded to BrewBuddy). Dropped
+        // children-first so foreign key constraints are never violated. Coffee tables untouched.
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP TABLE IF EXISTS workout_sets")
+                db.execSQL("DROP TABLE IF EXISTS workout_plan_exercises")
+                db.execSQL("DROP TABLE IF EXISTS workout_sessions")
+                db.execSQL("DROP TABLE IF EXISTS workout_plans")
+                db.execSQL("DROP TABLE IF EXISTS exercises")
+            }
+        }
+
+        // Version 5 → 6: brews gain a nullable "ideas for next brew" note. Existing rows get NULL.
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE coffee_brews ADD COLUMN nextBrewIdeas TEXT")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return Instance ?: synchronized(this) {
+                // File name predates the BrewBuddy rebrand; renaming it would orphan existing data.
                 Room.databaseBuilder(context, AppDatabase::class.java, "manzer_tracker_db")
-                    .addMigrations(MIGRATION_3_4)
+                    .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                     .build()
                     .also { Instance = it }
             }

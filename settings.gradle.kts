@@ -22,6 +22,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Manzer Tracker"
+rootProject.name = "BrewBuddy"
 include(":app")
  

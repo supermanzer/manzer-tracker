@@ -58,5 +58,21 @@ data class CoffeeBrew(
     val waterTemp: Int? = null,
     val ratio: String? = null,
     val rating: Int? = null,
-    val notes: String? = null
+    val notes: String? = null,
+    val nextBrewIdeas: String? = null
 )
+
+// CoffeeBrew.method stores the label as plain text, so brews logged before this list
+// existed (free-text methods) still load.
+enum class BrewMethod(val label: String) {
+    V60("V60"),
+    FRENCH_PRESS("French Press"),
+    ESPRESSO("Espresso"),
+    DRIP("Drip"),
+    AEROPRESS("Aeropress");
+
+    companion object {
+        fun fromLabel(label: String?): BrewMethod? =
+            entries.find { it.label.equals(label?.trim(), ignoreCase = true) }
+    }
+}
